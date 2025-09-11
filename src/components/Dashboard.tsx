@@ -185,9 +185,9 @@ const Dashboard: React.FC = () => {
         animate={isSidebarOpen ? "open" : "closed"}
         variants={sidebarVariants}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed left-0 top-16 bottom-0 bg-white border-r border-border shadow-sm z-40 overflow-hidden"
+        className="fixed left-0 top-16 bottom-0 bg-white border-r border-border shadow-sm z-40 overflow-y-auto"
       >
-        <div className="p-4">
+        <div className="p-4 pb-20">
           <Button
             variant={activeModule === 'dashboard' ? 'default' : 'ghost'}
             className={`w-full justify-start mb-4 ${!isSidebarOpen ? 'px-2' : ''}`}
@@ -208,7 +208,7 @@ const Dashboard: React.FC = () => {
             </AnimatePresence>
           </Button>
           
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -219,17 +219,17 @@ const Dashboard: React.FC = () => {
                 >
                   <Button
                     variant={activeModule === item.id ? 'default' : 'ghost'}
-                    className={`w-full justify-start ${!isSidebarOpen ? 'px-2' : ''}`}
+                    className={`w-full justify-start h-10 ${!isSidebarOpen ? 'px-2' : 'px-3'}`}
                     onClick={() => setActiveModule(item.id)}
                   >
-                    <Icon className={`h-5 w-5 ${item.color}`} />
+                    <Icon className={`h-4 w-4 ${item.color} flex-shrink-0`} />
                     <AnimatePresence>
                       {isSidebarOpen && (
                         <motion.span
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: 'auto' }}
                           exit={{ opacity: 0, width: 0 }}
-                          className="ml-2 text-left"
+                          className="ml-2 text-left text-sm font-medium truncate"
                         >
                           {item.name}
                         </motion.span>
