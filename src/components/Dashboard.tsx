@@ -45,6 +45,20 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { 
+    id: 'colaboradores', 
+    name: 'Colaboradores', 
+    icon: UserCog, 
+    description: 'Gestión de personal y permisos',
+    color: 'text-violet-600'
+  },
+  { 
+    id: 'gestion-hotel', 
+    name: 'Gestionar Hotel', 
+    icon: Building, 
+    description: 'Configuración del establecimiento',
+    color: 'text-slate-600'
+  },
+  { 
     id: 'reservas', 
     name: 'Reservas', 
     icon: Calendar, 
@@ -113,20 +127,6 @@ const menuItems: MenuItem[] = [
     icon: BarChart3, 
     description: 'Indicadores y análisis',
     color: 'text-indigo-600'
-  },
-  { 
-    id: 'colaboradores', 
-    name: 'Colaboradores', 
-    icon: UserCog, 
-    description: 'Gestión de personal y permisos',
-    color: 'text-violet-600'
-  },
-  { 
-    id: 'gestion-hotel', 
-    name: 'Gestionar Hotel', 
-    icon: Building, 
-    description: 'Configuración del establecimiento',
-    color: 'text-slate-600'
   },
 ];
 
