@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hotel Management System Design System
+All colors MUST be HSL. Professional hotel ERP aesthetics.
+*/
+
+@layer base {
+  :root {
+    /* Hotel Management Color Palette */
+    --background: 0 0% 98%;
+    --foreground: 210 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 15%;
+
+    /* Primary: Deep Hotel Blue */
+    --primary: 210 100% 25%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 210 100% 45%;
+    --primary-dark: 210 100% 15%;
+
+    /* Secondary: Professional Gray-Blue */
+    --secondary: 215 25% 95%;
+    --secondary-foreground: 210 15% 25%;
+
+    /* Muted: Light backgrounds */
+    --muted: 215 25% 97%;
+    --muted-foreground: 210 10% 45%;
+
+    /* Accent: Sky Blue for highlights */
+    --accent: 200 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 200 100% 85%;
+
+    /* Status Colors */
+    --success: 140 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 90% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 215 25% 88%;
+    --input: 215 25% 92%;
+    --ring: 210 100% 25%;
+
+    /* Hotel-specific colors */
+    --occupied: 0 70% 50%;
+    --available: 140 60% 45%;
+    --maintenance: 45 90% 55%;
+    --dirty: 15 85% 55%;
+    --clean: 140 60% 45%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 100% 25%), hsl(210 100% 45%));
+    --gradient-accent: linear-gradient(135deg, hsl(200 100% 50%), hsl(200 100% 70%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(215 25% 97%));
+
+    /* Shadows */
+    --shadow-hotel: 0 4px 20px -2px hsl(210 100% 25% / 0.1);
+    --shadow-card: 0 2px 10px -1px hsl(210 25% 25% / 0.08);
+    --shadow-floating: 0 10px 40px -10px hsl(210 100% 25% / 0.2);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode for hotel system */
+    --background: 210 25% 8%;
+    --foreground: 215 25% 95%;
+
+    --card: 210 25% 10%;
+    --card-foreground: 215 25% 95%;
+
+    --popover: 210 25% 10%;
+    --popover-foreground: 215 25% 95%;
+
+    --primary: 200 100% 60%;
+    --primary-foreground: 210 25% 8%;
+
+    --secondary: 210 25% 15%;
+    --secondary-foreground: 215 25% 90%;
+
+    --muted: 210 25% 12%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 200 100% 55%;
+    --accent-foreground: 210 25% 8%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 215 25% 95%;
+
+    --border: 210 25% 20%;
+    --input: 210 25% 15%;
+    --ring: 200 100% 60%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Hotel-specific utility classes */
+  .hotel-card {
+    @apply bg-card border border-border rounded-lg shadow-card;
+  }
+
+  .hotel-gradient {
+    background: var(--gradient-primary);
+  }
+
+  .status-occupied {
+    @apply bg-red-500 text-white;
+  }
+
+  .status-available {
+    @apply bg-green-500 text-white;
+  }
+
+  .status-maintenance {
+    @apply bg-yellow-500 text-white;
+  }
+
+  .hotel-transition {
+    transition: var(--transition-smooth);
+  }
+}
