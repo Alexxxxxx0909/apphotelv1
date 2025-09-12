@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCollaborators, CollaboratorFormData } from '@/hooks/useCollaborators';
+import { useCurrentManager } from '@/hooks/useCurrentManager';
 import CollaboratorDetailsModal from './CollaboratorDetailsModal';
 import CollaboratorEditModal from './CollaboratorEditModal';
 
@@ -53,6 +54,8 @@ const CollaboratorsModule: React.FC = () => {
     resetPassword,
     reassignHotel
   } = useCollaborators();
+  
+  const { hotelesAsignados } = useCurrentManager();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -369,8 +372,9 @@ const CollaboratorsModule: React.FC = () => {
                           <SelectValue placeholder="Seleccione hotel" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Hotel Principal">Hotel Principal</SelectItem>
-                          <SelectItem value="Hotel Sucursal">Hotel Sucursal</SelectItem>
+                          {hotelesAsignados.map(hotel => (
+                            <SelectItem key={hotel} value={hotel}>{hotel}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

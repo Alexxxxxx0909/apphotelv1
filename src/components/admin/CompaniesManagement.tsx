@@ -86,6 +86,7 @@ const CompaniesManagement: React.FC = () => {
         email: data.email,
         telefono: data.telefono,
         companyId: data.companyId,
+        hotelesAsignados: ['Hotel Principal', 'Hotel Sucursal'], // Asignar hoteles por defecto
         estado: 'activo'
       }, data.password);
       setDialogMode('none');

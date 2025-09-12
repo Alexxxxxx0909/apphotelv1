@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collaborator, CollaboratorFormData } from '@/hooks/useCollaborators';
+import { useCurrentManager } from '@/hooks/useCurrentManager';
 import { User, Shield, Settings } from 'lucide-react';
 
 interface CollaboratorEditModalProps {
@@ -34,6 +35,7 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<CollaboratorFormData>>({});
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const { hotelesAsignados } = useCurrentManager();
 
   useEffect(() => {
     if (collaborator) {
@@ -186,8 +188,9 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
                         <SelectValue placeholder="Seleccione hotel" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Hotel Principal">Hotel Principal</SelectItem>
-                        <SelectItem value="Hotel Sucursal">Hotel Sucursal</SelectItem>
+                        {hotelesAsignados.map(hotel => (
+                          <SelectItem key={hotel} value={hotel}>{hotel}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

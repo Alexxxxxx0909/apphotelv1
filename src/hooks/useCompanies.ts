@@ -56,6 +56,7 @@ export interface Manager {
   email: string;
   telefono: string;
   companyId: string;
+  hotelesAsignados: string[];
   fechaCreacion: Date;
   ultimoAcceso?: Date;
   estado: 'activo' | 'inactivo';
