@@ -40,6 +40,7 @@ export interface CollaboratorFormData {
   cargo: string;
   hotelAsignado: string;
   modulosAsignados: string[];
+  password: string;
 }
 
 export const useCollaborators = () => {

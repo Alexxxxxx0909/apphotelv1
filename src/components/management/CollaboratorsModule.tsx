@@ -70,8 +70,18 @@ const CollaboratorsModule: React.FC = () => {
     telefono: '',
     cargo: '',
     hotelAsignado: '',
-    modulosAsignados: []
+    modulosAsignados: [],
+    password: generateRandomPassword()
   });
+
+  function generateRandomPassword(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
 
   const modulosDisponibles = [
     { id: 'reservas', nombre: 'Reservas' },
@@ -112,7 +122,8 @@ const CollaboratorsModule: React.FC = () => {
         telefono: '',
         cargo: '',
         hotelAsignado: '',
-        modulosAsignados: []
+        modulosAsignados: [],
+        password: generateRandomPassword()
       });
       setShowCreateDialog(false);
     } catch (error) {
@@ -365,23 +376,45 @@ const CollaboratorsModule: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>Módulos de Acceso</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {modulosDisponibles.map(modulo => (
-                        <div key={modulo.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={modulo.id} 
-                            checked={newCollaborator.modulosAsignados.includes(modulo.id)}
-                            onCheckedChange={(checked) => handleModuleToggle(modulo.id, checked as boolean)}
-                          />
-                          <Label htmlFor={modulo.id} className="text-sm">
-                            {modulo.nombre}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="password">Contraseña Temporal</Label>
+                     <div className="flex space-x-2">
+                       <Input
+                         id="password"
+                         type="text"
+                         value={newCollaborator.password}
+                         readOnly
+                       />
+                       <Button 
+                         type="button" 
+                         variant="outline"
+                         onClick={() => setNewCollaborator(prev => ({ ...prev, password: generateRandomPassword() }))}
+                       >
+                         Generar Nueva
+                       </Button>
+                     </div>
+                     <p className="text-xs text-muted-foreground">
+                       Esta contraseña será proporcionada al colaborador para su primer acceso
+                     </p>
+                   </div>
+                   
+                   <div className="space-y-2">
+                     <Label>Módulos de Acceso</Label>
+                     <div className="grid grid-cols-2 gap-2">
+                       {modulosDisponibles.map(modulo => (
+                         <div key={modulo.id} className="flex items-center space-x-2">
+                           <Checkbox 
+                             id={modulo.id} 
+                             checked={newCollaborator.modulosAsignados.includes(modulo.id)}
+                             onCheckedChange={(checked) => handleModuleToggle(modulo.id, checked as boolean)}
+                           />
+                           <Label htmlFor={modulo.id} className="text-sm">
+                             {modulo.nombre}
+                           </Label>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
                 </div>
                 
                 <DialogFooter>
