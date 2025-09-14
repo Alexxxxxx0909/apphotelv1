@@ -34,6 +34,7 @@ import HousekeepingModule from './housekeeping/HousekeepingModule';
 import MaintenanceModule from './maintenance/MaintenanceModule';
 import CollaboratorsModule from './management/CollaboratorsModule';
 import HotelManagementModule from './management/HotelManagementModule';
+import FoodBeverageModule from './food-beverage/FoodBeverageModule';
 
 interface MenuItem {
   id: string;
@@ -281,8 +282,9 @@ const Dashboard: React.FC = () => {
             {activeModule === 'mantenimiento' && <MaintenanceModule />}
             {activeModule === 'colaboradores' && <CollaboratorsModule />}
             {activeModule === 'gestion-hotel' && <HotelManagementModule />}
+            {activeModule === 'alimentos' && <FoodBeverageModule />}
             
-            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && (
+            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">
