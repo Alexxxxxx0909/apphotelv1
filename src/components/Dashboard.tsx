@@ -35,6 +35,7 @@ import MaintenanceModule from './maintenance/MaintenanceModule';
 import CollaboratorsModule from './management/CollaboratorsModule';
 import HotelManagementModule from './management/HotelManagementModule';
 import FoodBeverageModule from './food-beverage/FoodBeverageModule';
+import SuppliersModule from './suppliers/SuppliersModule';
 
 interface MenuItem {
   id: string;
@@ -109,10 +110,17 @@ const menuItems: MenuItem[] = [
     color: 'text-amber-600'
   },
   { 
+    id: 'proveedores', 
+    name: 'Proveedores', 
+    icon: Building, 
+    description: 'Gestión de proveedores y compras',
+    color: 'text-teal-600'
+  },
+  { 
     id: 'financiera', 
     name: 'Gestión Financiera', 
     icon: Calculator, 
-    description: 'Proveedores e inventario',
+    description: 'Contabilidad e inventario',
     color: 'text-emerald-600'
   },
   { 
@@ -283,8 +291,9 @@ const Dashboard: React.FC = () => {
             {activeModule === 'colaboradores' && <CollaboratorsModule />}
             {activeModule === 'gestion-hotel' && <HotelManagementModule />}
             {activeModule === 'alimentos' && <FoodBeverageModule />}
+            {activeModule === 'proveedores' && <SuppliersModule />}
             
-            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && (
+            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">
