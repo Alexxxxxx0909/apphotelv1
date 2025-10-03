@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
+import { useHotels } from '@/hooks/useHotels';
 
 interface UserFormProps {
   user?: any;
@@ -19,6 +20,8 @@ interface UserFormProps {
 
 const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing = false }) => {
   const { toast } = useToast();
+  const { hotels, loading: hotelsLoading } = useHotels();
+  
   const [formData, setFormData] = useState({
     name: '',
     lastName: '',
@@ -44,14 +47,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
     { value: 'mantenimiento', label: 'Mantenimiento', permissions: ['maintenance'] },
     { value: 'contador', label: 'Contador', permissions: ['billing', 'reports'] },
     { value: 'colaborador', label: 'Colaborador General', permissions: ['reception'] }
-  ];
-
-  const hotels = [
-    'Hotel Bella Vista',
-    'Resort Paradise',
-    'Hotel Centro',
-    'Boutique Hotel Marina',
-    'Hotel Plaza'
   ];
 
   useEffect(() => {
@@ -218,16 +213,29 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
 
         <div className="space-y-2">
           <Label htmlFor="hotel">Hotel *</Label>
-          <Select value={formData.hotel} onValueChange={(value) => setFormData(prev => ({ ...prev, hotel: value }))}>
+          <Select 
+            value={formData.hotel} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, hotel: value }))}
+            disabled={hotelsLoading}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar hotel" />
+              <SelectValue placeholder={hotelsLoading ? "Cargando hoteles..." : "Seleccionar hotel"} />
             </SelectTrigger>
             <SelectContent>
-              {hotels.map((hotel) => (
-                <SelectItem key={hotel} value={hotel}>
-                  {hotel}
-                </SelectItem>
-              ))}
+              {hotels
+                .filter(hotel => hotel.estado === 'activo')
+                .map((hotel) => (
+                  <SelectItem key={hotel.id} value={hotel.id}>
+                    <div className="flex flex-col">
+                      <span>{hotel.nombre}</span>
+                      {hotel.ciudad && (
+                        <span className="text-xs text-muted-foreground">
+                          {hotel.ciudad}{hotel.pais ? `, ${hotel.pais}` : ''}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

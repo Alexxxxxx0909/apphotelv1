@@ -7,14 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Mail } from 'lucide-react';
+import { UserPlus, Mail, Building2 } from 'lucide-react';
 import { Company } from '@/hooks/useCompanies';
+import { useHotels } from '@/hooks/useHotels';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const managerSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
   email: z.string().email('Email inválido'),
   telefono: z.string().min(7, 'El teléfono es requerido'),
   companyId: z.string().min(1, 'Debe seleccionar una empresa'),
+  hotelesAsignados: z.array(z.string()).min(1, 'Debe seleccionar al menos un hotel'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres')
 });
 
@@ -46,9 +49,14 @@ export const ManagerForm: React.FC<ManagerFormProps> = ({
       email: '',
       telefono: '',
       companyId: '',
+      hotelesAsignados: [],
       password: generateRandomPassword()
     }
   });
+
+  const selectedCompanyId = watch('companyId');
+  const selectedHotels = watch('hotelesAsignados') || [];
+  const { hotels } = useHotels(selectedCompanyId);
 
   function generateRandomPassword(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -160,6 +168,68 @@ export const ManagerForm: React.FC<ManagerFormProps> = ({
               </div>
             )}
           </div>
+
+          {/* Asignación de Hoteles */}
+          {selectedCompanyId && (
+            <div className="space-y-4">
+              <h4 className="font-medium flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Hoteles Asignados
+              </h4>
+              
+              <div className="space-y-2">
+                <Label>Seleccionar hoteles *</Label>
+                {hotels.length > 0 ? (
+                  <div className="space-y-2 border rounded-lg p-4 max-h-60 overflow-y-auto">
+                    {hotels
+                      .filter(hotel => hotel.estado === 'activo')
+                      .map((hotel) => (
+                        <div key={hotel.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={hotel.id}
+                            checked={selectedHotels.includes(hotel.id)}
+                            onCheckedChange={(checked) => {
+                              const newHotels = checked
+                                ? [...selectedHotels, hotel.id]
+                                : selectedHotels.filter(id => id !== hotel.id);
+                              setValue('hotelesAsignados', newHotels);
+                            }}
+                          />
+                          <label
+                            htmlFor={hotel.id}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                          >
+                            <div className="flex flex-col">
+                              <span>{hotel.nombre}</span>
+                              {hotel.ciudad && (
+                                <span className="text-xs text-muted-foreground">
+                                  {hotel.ciudad}{hotel.pais ? `, ${hotel.pais}` : ''}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="p-4 border border-dashed rounded-lg text-center text-muted-foreground">
+                    No hay hoteles disponibles para esta empresa
+                  </div>
+                )}
+                {errors.hotelesAsignados && (
+                  <p className="text-sm text-red-500">{errors.hotelesAsignados.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Seleccione uno o más hoteles para asignar al gerente
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
 
           {/* Credenciales de Acceso */}
           <div className="space-y-4">
