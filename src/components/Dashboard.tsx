@@ -36,6 +36,7 @@ import CollaboratorsModule from './management/CollaboratorsModule';
 import HotelManagementModule from './management/HotelManagementModule';
 import FoodBeverageModule from './food-beverage/FoodBeverageModule';
 import SuppliersModule from './suppliers/SuppliersModule';
+import ProfileModule from './profile/ProfileModule';
 
 interface MenuItem {
   id: string;
@@ -47,7 +48,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { 
-    id: 'colaboradores', 
+    id: 'colaboradores',
     name: 'Colaboradores', 
     icon: UserCog, 
     description: 'Gestión de personal y permisos',
@@ -181,6 +182,9 @@ const Dashboard: React.FC = () => {
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
               <p className="text-xs text-green-600 font-medium">Gerente</p>
             </div>
+            <Button variant="ghost" size="sm" onClick={() => setActiveModule('perfil')}>
+              <User className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
@@ -292,8 +296,9 @@ const Dashboard: React.FC = () => {
             {activeModule === 'gestion-hotel' && <HotelManagementModule />}
             {activeModule === 'alimentos' && <FoodBeverageModule />}
             {activeModule === 'proveedores' && <SuppliersModule />}
+            {activeModule === 'perfil' && <ProfileModule />}
             
-            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && (
+            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && activeModule !== 'perfil' && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">

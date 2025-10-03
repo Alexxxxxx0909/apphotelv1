@@ -16,10 +16,12 @@ import {
   User,
   Briefcase
 } from 'lucide-react';
+import ProfileModule from './profile/ProfileModule';
 
 const CollaboratorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTask, setActiveTask] = useState('pending');
+  const [showProfile, setShowProfile] = useState(false);
 
   const taskSummary = {
     pending: 8,
@@ -79,6 +81,34 @@ const CollaboratorDashboard: React.FC = () => {
     }
   };
 
+  if (showProfile) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="bg-white border-b border-border h-16 fixed top-0 left-0 right-0 z-50 shadow-sm">
+          <div className="flex items-center justify-between h-full px-6">
+            <div className="flex items-center space-x-3">
+              <Button variant="ghost" onClick={() => setShowProfile(false)}>
+                ← Volver al Dashboard
+              </Button>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-foreground">{user?.name}</p>
+                <p className="text-xs text-blue-600 font-medium">Colaborador</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={logout}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <div className="pt-16 p-6">
+          <ProfileModule />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -98,6 +128,9 @@ const CollaboratorDashboard: React.FC = () => {
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
               <p className="text-xs text-blue-600 font-medium">Colaborador</p>
             </div>
+            <Button variant="ghost" size="sm" onClick={() => setShowProfile(true)}>
+              <User className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>

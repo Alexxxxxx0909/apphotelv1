@@ -194,7 +194,6 @@ const PlanAndLicenseModule: React.FC = () => {
       case 'pagada': 
         return 'bg-green-100 text-green-800';
       case 'vencida':
-      case 'vencida':
         return 'bg-red-100 text-red-800';
       case 'suspendida':
         return 'bg-orange-100 text-orange-800';

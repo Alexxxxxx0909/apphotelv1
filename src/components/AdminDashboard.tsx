@@ -24,7 +24,8 @@ import {
   DollarSign,
   Activity,
   AlertTriangle,
-  Server
+  Server,
+  User
 } from 'lucide-react';
 import CompaniesManagement from '@/components/admin/CompaniesManagement';
 import UsersManagement from '@/components/admin/UsersManagement';
@@ -35,6 +36,7 @@ import PlanAndLicenseModule from '@/components/admin/PlanAndLicenseModule';
 import AdminReportsModule from '@/components/admin/AdminReportsModule';
 import SupportCommunicationsModule from '@/components/admin/SupportCommunicationsModule';
 import SystemMaintenanceModule from '@/components/admin/SystemMaintenanceModule';
+import ProfileModule from '@/components/profile/ProfileModule';
 
 interface AdminMenuItem {
   id: string;
@@ -152,6 +154,9 @@ const AdminDashboard: React.FC = () => {
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
               <p className="text-xs text-yellow-600 font-medium">Administrador</p>
             </div>
+            <Button variant="ghost" size="sm" onClick={() => setActiveModule('perfil')}>
+              <User className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
@@ -387,9 +392,10 @@ const AdminDashboard: React.FC = () => {
             {activeModule === 'reportes' && <AdminReportsModule />}
             {activeModule === 'soporte' && <SupportCommunicationsModule />}
             {activeModule === 'sistema' && <SystemMaintenanceModule />}
+            {activeModule === 'perfil' && <ProfileModule />}
             
             {/* Module Placeholder for remaining sections */}
-            {!['dashboard', 'empresas', 'usuarios', 'seguridad', 'auditoria', 'configuracion', 'planes', 'reportes', 'soporte', 'sistema'].includes(activeModule) && (
+            {!['dashboard', 'empresas', 'usuarios', 'seguridad', 'auditoria', 'configuracion', 'planes', 'reportes', 'soporte', 'sistema', 'perfil'].includes(activeModule) && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">
