@@ -184,19 +184,13 @@ const CompaniesManagement: React.FC = () => {
       {/* Header and Actions */}
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold">Gestión de Empresas/Hoteles</h3>
-          <p className="text-muted-foreground">Administra las empresas hoteleras registradas</p>
+          <h3 className="text-lg font-semibold">Gestión de Hoteles</h3>
+          <p className="text-muted-foreground">Administra los hoteles registrados en el sistema</p>
         </div>
-        <div className="flex space-x-2">
-          <Button onClick={() => setDialogMode('create-manager')}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Nuevo Gerente
-          </Button>
-          <Button onClick={() => setDialogMode('create-company')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Empresa
-          </Button>
-        </div>
+        <Button onClick={() => setDialogMode('create-company')}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nuevo Hotel
+        </Button>
       </div>
 
       {/* Search and Filters */}
@@ -365,10 +359,10 @@ const CompaniesManagement: React.FC = () => {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {dialogMode === 'create-company' && 'Nueva Empresa'}
-              {dialogMode === 'edit-company' && 'Editar Empresa'}
+              {dialogMode === 'create-company' && 'Nuevo Hotel'}
+              {dialogMode === 'edit-company' && 'Editar Hotel'}
               {dialogMode === 'create-manager' && 'Crear Gerente General'}
-              {dialogMode === 'view-details' && 'Detalles de la Empresa'}
+              {dialogMode === 'view-details' && 'Detalles del Hotel'}
             </DialogTitle>
           </DialogHeader>
           

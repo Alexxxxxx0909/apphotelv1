@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Building } from 'lucide-react';
+import { CalendarIcon, Building, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Company } from '@/hooks/useCompanies';
@@ -49,10 +49,12 @@ interface CompanyFormProps {
   loading?: boolean;
 }
 
-const availableModules = [
-  'reservas', 'recepcion', 'housekeeping', 'mantenimiento', 
-  'facturacion', 'atencion_cliente', 'reportes'
-];
+// Módulos por plan
+const modulesByPlan = {
+  basico: ['reservas', 'recepcion', 'reportes'],
+  estandar: ['reservas', 'recepcion', 'housekeeping', 'facturacion', 'atencion_cliente', 'reportes'],
+  premium: ['reservas', 'recepcion', 'housekeeping', 'mantenimiento', 'facturacion', 'atencion_cliente', 'food_beverage', 'proveedores', 'reportes']
+};
 
 export const CompanyForm: React.FC<CompanyFormProps> = ({
   company,
@@ -96,7 +98,7 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
         tipo: 'basico',
         fechaInicio: new Date(),
         fechaVencimiento: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 año
-        modulosActivos: ['reservas', 'recepcion']
+        modulosActivos: modulesByPlan.basico
       }
     }
   });
@@ -109,10 +111,10 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building className="h-5 w-5" />
-            {company ? 'Editar Empresa' : 'Nueva Empresa'}
+            {company ? 'Editar Hotel' : 'Nuevo Hotel'}
           </CardTitle>
           <CardDescription>
-            Complete la información general de la empresa hotelera
+            Complete la información general del hotel
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -283,12 +285,20 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
           <Separator />
 
           {/* Plan y Licencia */}
-          <div className="space-y-4">
+            <div className="space-y-4">
             <h4 className="font-medium">Plan y Licencia</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tipo de Plan *</Label>
-                <Select onValueChange={(value) => setValue('plan.tipo', value as any)} defaultValue={watchedPlan?.tipo}>
+                <Select 
+                  onValueChange={(value) => {
+                    const planType = value as 'basico' | 'estandar' | 'premium';
+                    setValue('plan.tipo', planType);
+                    // Asignar módulos automáticamente según el plan
+                    setValue('plan.modulosActivos', modulesByPlan[planType]);
+                  }} 
+                  defaultValue={watchedPlan?.tipo}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar plan" />
                   </SelectTrigger>
@@ -316,28 +326,21 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Módulos Disponibles</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {availableModules.map((modulo) => (
-                  <div key={modulo} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id={modulo}
-                      defaultChecked={watchedPlan?.modulosActivos?.includes(modulo)}
-                      onChange={(e) => {
-                        const current = watchedPlan?.modulosActivos || [];
-                        if (e.target.checked) {
-                          setValue('plan.modulosActivos', [...current, modulo]);
-                        } else {
-                          setValue('plan.modulosActivos', current.filter(m => m !== modulo));
-                        }
-                      }}
-                    />
-                    <Label htmlFor={modulo} className="capitalize text-sm">
-                      {modulo.replace('_', ' ')}
-                    </Label>
-                  </div>
-                ))}
+              <Label>Módulos Incluidos en el Plan</Label>
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {watchedPlan?.modulosActivos?.map((modulo) => (
+                    <div key={modulo} className="flex items-center space-x-2">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-sm capitalize">
+                        {modulo.replace('_', ' ')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Los módulos se asignan automáticamente según el plan seleccionado
+                </p>
               </div>
             </div>
           </div>
@@ -350,7 +353,7 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
           Cancelar
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? 'Guardando...' : company ? 'Actualizar Empresa' : 'Crear Empresa'}
+          {loading ? 'Guardando...' : company ? 'Actualizar Hotel' : 'Crear Hotel'}
         </Button>
       </div>
     </form>

@@ -88,7 +88,7 @@ const PlanAndLicenseModule: React.FC = () => {
         usuarios: 5,
         hoteles: 1,
         transacciones: 100,
-        modulosHabilitados: ['recepcion', 'reservas']
+        modulosHabilitados: ['reservas', 'recepcion', 'reportes']
       },
       fechaCreacion: new Date('2024-01-15'),
       estado: 'activo'
@@ -103,7 +103,7 @@ const PlanAndLicenseModule: React.FC = () => {
         usuarios: 15,
         hoteles: 3,
         transacciones: 500,
-        modulosHabilitados: ['recepcion', 'reservas', 'facturacion', 'housekeeping']
+        modulosHabilitados: ['reservas', 'recepcion', 'housekeeping', 'facturacion', 'atencion_cliente', 'reportes']
       },
       fechaCreacion: new Date('2024-01-15'),
       estado: 'activo'
@@ -118,7 +118,7 @@ const PlanAndLicenseModule: React.FC = () => {
         usuarios: 50,
         hoteles: 10,
         transacciones: 2000,
-        modulosHabilitados: ['recepcion', 'reservas', 'facturacion', 'housekeeping', 'mantenimiento', 'customer-service', 'reportes']
+        modulosHabilitados: ['reservas', 'recepcion', 'housekeeping', 'mantenimiento', 'facturacion', 'atencion_cliente', 'food_beverage', 'proveedores', 'reportes']
       },
       fechaCreacion: new Date('2024-01-15'),
       estado: 'activo'

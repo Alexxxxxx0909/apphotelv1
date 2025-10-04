@@ -115,19 +115,34 @@ export const useCompanies = () => {
 
   const createCompany = async (companyData: Omit<Company, 'id' | 'fechaCreacion' | 'estadisticas'>) => {
     try {
+      // También crear el hotel en la colección 'hotels'
+      const hotelData = {
+        nombre: companyData.nombreComercial,
+        direccion: companyData.direccion,
+        ciudad: companyData.ciudad,
+        pais: companyData.pais,
+        telefono: companyData.telefono,
+        email: companyData.emailCorporativo,
+        estado: companyData.estado,
+        fechaCreacion: Timestamp.now()
+      };
+
+      const hotelRef = await addDoc(collection(db, 'hotels'), hotelData);
+
       const docRef = await addDoc(collection(db, 'companies'), {
         ...companyData,
+        hotelId: hotelRef.id,
         fechaCreacion: Timestamp.now(),
         estadisticas: {
           usuarios: 0,
-          modulosEnUso: [],
+          modulosEnUso: companyData.plan.modulosActivos,
           actividadReciente: []
         }
       });
 
       toast({
-        title: "Empresa creada",
-        description: `${companyData.nombreComercial} ha sido registrada exitosamente.`,
+        title: "Hotel creado",
+        description: `${companyData.nombreComercial} ha sido registrado exitosamente.`,
       });
 
       return docRef.id;
@@ -135,7 +150,7 @@ export const useCompanies = () => {
       setError(err.message);
       toast({
         title: "Error",
-        description: "No se pudo crear la empresa. Intenta de nuevo.",
+        description: "No se pudo crear el hotel. Intenta de nuevo.",
         variant: "destructive"
       });
       throw err;
