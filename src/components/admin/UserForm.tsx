@@ -10,6 +10,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { useHotels } from '@/hooks/useHotels';
+import { useRoles } from '@/hooks/useRoles';
+import { initializeRoles } from '@/scripts/initializeRoles';
 
 interface UserFormProps {
   user?: any;
@@ -21,12 +23,15 @@ interface UserFormProps {
 const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing = false }) => {
   const { toast } = useToast();
   const { hotels, loading: hotelsLoading } = useHotels();
+  const { roles, loading: rolesLoading } = useRoles();
   
   const [formData, setFormData] = useState({
     name: '',
     lastName: '',
     email: '',
     phone: '',
+    identificacion: '',
+    direccion: '',
     role: '',
     hotel: '',
     active: true,
@@ -39,15 +44,10 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
 
   const [loading, setLoading] = useState(false);
 
-  const roles = [
-    { value: 'administrador', label: 'Administrador', permissions: ['all'] },
-    { value: 'gerente', label: 'Gerente', permissions: ['reception', 'housekeeping', 'billing', 'reports', 'maintenance'] },
-    { value: 'recepcionista', label: 'Recepcionista', permissions: ['reception', 'billing'] },
-    { value: 'housekeeping', label: 'Personal de Limpieza', permissions: ['housekeeping'] },
-    { value: 'mantenimiento', label: 'Mantenimiento', permissions: ['maintenance'] },
-    { value: 'contador', label: 'Contador', permissions: ['billing', 'reports'] },
-    { value: 'colaborador', label: 'Colaborador General', permissions: ['reception'] }
-  ];
+  // Initialize roles on component mount
+  React.useEffect(() => {
+    initializeRoles().catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (user && isEditing) {
@@ -56,6 +56,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
         lastName: user.lastName || '',
         email: user.email || '',
         phone: user.phone || '',
+        identificacion: user.identificacion || '',
+        direccion: user.direccion || '',
         role: user.role || '',
         hotel: user.hotel || '',
         active: user.active !== false,
@@ -68,12 +70,12 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
     }
   }, [user, isEditing]);
 
-  const handleRoleChange = (role: string) => {
-    const selectedRole = roles.find(r => r.value === role);
+  const handleRoleChange = (roleId: string) => {
+    const selectedRole = roles.find(r => r.id === roleId);
     setFormData(prev => ({
       ...prev,
-      role,
-      permissions: selectedRole ? selectedRole.permissions : []
+      role: roleId,
+      permissions: selectedRole ? selectedRole.permisos : []
     }));
   };
 
@@ -115,6 +117,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           lastName: formData.lastName,
           email: formData.email,
           phone: formData.phone,
+          identificacion: formData.identificacion,
+          direccion: formData.direccion,
           role: formData.role,
           hotel: formData.hotel,
           active: formData.active,
@@ -196,17 +200,43 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="identificacion">Número de Identificación *</Label>
+          <Input
+            id="identificacion"
+            value={formData.identificacion}
+            onChange={(e) => setFormData(prev => ({ ...prev, identificacion: e.target.value }))}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="direccion">Dirección *</Label>
+          <Input
+            id="direccion"
+            value={formData.direccion}
+            onChange={(e) => setFormData(prev => ({ ...prev, direccion: e.target.value }))}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="role">Rol *</Label>
-          <Select value={formData.role} onValueChange={handleRoleChange}>
+          <Select 
+            value={formData.role} 
+            onValueChange={handleRoleChange}
+            disabled={rolesLoading}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar rol" />
+              <SelectValue placeholder={rolesLoading ? "Cargando roles..." : "Seleccionar rol"} />
             </SelectTrigger>
             <SelectContent>
-              {roles.map((role) => (
-                <SelectItem key={role.value} value={role.value}>
-                  {role.label}
-                </SelectItem>
-              ))}
+              {roles
+                .filter(role => role.estado === 'activo')
+                .map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    {role.nombre}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
