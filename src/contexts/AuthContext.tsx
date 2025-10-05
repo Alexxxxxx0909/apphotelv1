@@ -47,20 +47,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           console.log('Usuario autenticado:', firebaseUser.email);
           
-          // Buscar usuario por UID en la colección users
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('uid', '==', firebaseUser.uid));
-          const querySnapshot = await getDocs(q);
+          // Buscar usuario directamente por su UID (que es el ID del documento)
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
           
-          if (!querySnapshot.empty) {
-            const userData = querySnapshot.docs[0].data();
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
             console.log('Datos del usuario desde Firestore:', userData);
-            console.log('Rol del usuario:', userData.role);
+            console.log('Rol ID del usuario:', userData.role);
+            
+            // Obtener el nombre del rol desde la colección de roles
+            const roleDocRef = doc(db, 'roles', userData.role);
+            const roleDocSnap = await getDoc(roleDocRef);
+            
+            let roleName = userData.role; // Por defecto usar el ID del rol
+            if (roleDocSnap.exists()) {
+              roleName = roleDocSnap.id; // Usar el ID del rol (administrador, gerente, colaborador)
+              console.log('Nombre del rol:', roleName);
+            }
+            
             const newUser = {
               id: firebaseUser.uid,
               name: userData.name,
               email: firebaseUser.email || '',
-              role: userData.role
+              role: roleName
             };
             setUser(newUser);
             console.log('Usuario establecido con rol:', newUser.role);
