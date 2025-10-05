@@ -14,10 +14,14 @@ import {
   Edit,
   Key,
   UserX,
-  UserCheck
+  UserCheck,
+  FileText,
+  MapPin
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useHotels } from '@/hooks/useHotels';
+import { useRoles } from '@/hooks/useRoles';
 
 interface UserDetailsModalProps {
   user: any;
@@ -36,12 +40,25 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   onToggleStatus,
   onResetPassword
 }) => {
+  const { hotels } = useHotels();
+  const { roles } = useRoles();
+  
   if (!user) return null;
 
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
     const dateObj = date.toDate ? date.toDate() : new Date(date);
     return format(dateObj, 'dd/MM/yyyy HH:mm', { locale: es });
+  };
+
+  const getHotelName = (hotelId: string) => {
+    const hotel = hotels.find(h => h.id === hotelId);
+    return hotel?.nombre || 'No asignado';
+  };
+
+  const getRoleName = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId);
+    return role?.nombre || roleId;
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -102,10 +119,26 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
 
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Identificación</span>
+                </div>
+                <p className="text-sm">{user.identificacion || 'No especificado'}</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Dirección</span>
+                </div>
+                <p className="text-sm">{user.direccion || 'No especificado'}</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
                   <Building className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Hotel</span>
                 </div>
-                <p className="text-sm">{user.hotel || 'No asignado'}</p>
+                <p className="text-sm">{user.hotel ? getHotelName(user.hotel) : 'No asignado'}</p>
               </div>
             </div>
           </div>
@@ -126,7 +159,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                   variant="outline" 
                   className={getRoleBadgeColor(user.role)}
                 >
-                  {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                  {getRoleName(user.role)}
                 </Badge>
               </div>
 

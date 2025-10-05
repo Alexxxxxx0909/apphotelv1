@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { useCompanies, Company } from '@/hooks/useCompanies';
 import { useUsersByHotel } from '@/hooks/useUsersByHotel';
+import { useUsers } from '@/hooks/useUsers';
+import { useHotels } from '@/hooks/useHotels';
 import { CompanyForm } from './CompanyForm';
 import { ManagerForm } from './ManagerForm';
 import { format } from 'date-fns';
@@ -47,6 +49,8 @@ const CompaniesManagement: React.FC = () => {
   } = useCompanies();
 
   const { getUserCountForHotel } = useUsersByHotel();
+  const { getUserById } = useUsers();
+  const { hotels } = useHotels();
 
   const statistics = getCompanyStatistics();
 
@@ -389,36 +393,44 @@ const CompaniesManagement: React.FC = () => {
             />
           )}
 
-          {dialogMode === 'view-details' && selectedCompany && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Información General</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p><strong>Nombre:</strong> {selectedCompany.nombreComercial}</p>
-                    <p><strong>Razón Social:</strong> {selectedCompany.razonSocial}</p>
-                    <p><strong>NIT:</strong> {selectedCompany.nit}</p>
-                    <p><strong>Email:</strong> {selectedCompany.emailCorporativo}</p>
-                    <p><strong>Teléfono:</strong> {selectedCompany.telefono}</p>
-                  </CardContent>
-                </Card>
+          {dialogMode === 'view-details' && selectedCompany && (() => {
+            const hotel = hotels.find(h => h.id === selectedCompany.hotelId);
+            const manager = hotel?.managerId ? getUserById(hotel.managerId) : null;
+            
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Información General</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <p><strong>Nombre:</strong> {selectedCompany.nombreComercial}</p>
+                      <p><strong>Razón Social:</strong> {selectedCompany.razonSocial}</p>
+                      <p><strong>NIT:</strong> {selectedCompany.nit}</p>
+                      <p><strong>Email:</strong> {selectedCompany.emailCorporativo}</p>
+                      <p><strong>Teléfono:</strong> {selectedCompany.telefono}</p>
+                      {manager && (
+                        <p><strong>Gerente:</strong> {manager.name} {manager.lastName || ''}</p>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Plan y Licencia</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p><strong>Plan:</strong> {selectedCompany.plan.tipo.toUpperCase()}</p>
-                    <p><strong>Inicio:</strong> {format(selectedCompany.plan.fechaInicio, 'dd/MM/yyyy')}</p>
-                    <p><strong>Vencimiento:</strong> {format(selectedCompany.plan.fechaVencimiento, 'dd/MM/yyyy')}</p>
-                    <p><strong>Módulos:</strong> {selectedCompany.plan.modulosActivos.join(', ')}</p>
-                  </CardContent>
-                </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Plan y Licencia</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <p><strong>Plan:</strong> {selectedCompany.plan.tipo.toUpperCase()}</p>
+                      <p><strong>Inicio:</strong> {format(selectedCompany.plan.fechaInicio, 'dd/MM/yyyy')}</p>
+                      <p><strong>Vencimiento:</strong> {format(selectedCompany.plan.fechaVencimiento, 'dd/MM/yyyy')}</p>
+                      <p><strong>Módulos:</strong> {selectedCompany.plan.modulosActivos.join(', ')}</p>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
