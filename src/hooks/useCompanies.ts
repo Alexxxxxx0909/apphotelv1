@@ -40,6 +40,7 @@ export interface Company {
     fechaVencimiento: Date;
     modulosActivos: string[];
   };
+  hotelId?: string;
   gerenteGeneralId?: string;
   fechaCreacion: Date;
   ultimoAcceso?: Date;

@@ -20,6 +20,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useCompanies, Company } from '@/hooks/useCompanies';
+import { useUsersByHotel } from '@/hooks/useUsersByHotel';
 import { CompanyForm } from './CompanyForm';
 import { ManagerForm } from './ManagerForm';
 import { format } from 'date-fns';
@@ -44,6 +45,8 @@ const CompaniesManagement: React.FC = () => {
     createManager,
     getCompanyStatistics
   } = useCompanies();
+
+  const { getUserCountForHotel } = useUsersByHotel();
 
   const statistics = getCompanyStatistics();
 
@@ -282,7 +285,9 @@ const CompaniesManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{company.estadisticas.usuarios} usuarios</span>
+                        <span className="text-sm">
+                          {company.hotelId ? getUserCountForHotel(company.hotelId) : company.estadisticas.usuarios} usuarios
+                        </span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />

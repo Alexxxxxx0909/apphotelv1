@@ -130,6 +130,41 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           createdBy: auth.currentUser?.uid
         });
 
+        // Si el rol es Gerente, actualizar el hotel con el managerId
+        const selectedRole = roles.find(r => r.id === formData.role);
+        if (selectedRole?.nombre === 'Gerente' && formData.hotel) {
+          const { updateDoc, doc, increment } = await import('firebase/firestore');
+          await updateDoc(doc(db, 'hotels', formData.hotel), {
+            managerId: userCredential.user.uid
+          });
+        }
+
+        // Actualizar contador de usuarios del hotel
+        if (formData.hotel) {
+          const { updateDoc, doc, increment, getDoc } = await import('firebase/firestore');
+          
+          // Buscar la empresa asociada al hotel
+          const hotelDoc = await getDoc(doc(db, 'hotels', formData.hotel));
+          if (hotelDoc.exists()) {
+            const hotelData = hotelDoc.data();
+            
+            // Buscar la empresa que tiene este hotelId
+            const { query, collection, where, getDocs } = await import('firebase/firestore');
+            const companiesQuery = query(
+              collection(db, 'companies'),
+              where('hotelId', '==', formData.hotel)
+            );
+            const companiesSnapshot = await getDocs(companiesQuery);
+            
+            if (!companiesSnapshot.empty) {
+              const companyDoc = companiesSnapshot.docs[0];
+              await updateDoc(doc(db, 'companies', companyDoc.id), {
+                'estadisticas.usuarios': increment(1)
+              });
+            }
+          }
+        }
+
         toast({
           title: "Usuario creado",
           description: "El usuario ha sido creado exitosamente"
