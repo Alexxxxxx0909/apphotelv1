@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { useHotels } from '@/hooks/useHotels';
 import { useRoles } from '@/hooks/useRoles';
 import { initializeRoles } from '@/scripts/initializeRoles';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UserFormProps {
   user?: any;
@@ -24,6 +25,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
   const { toast } = useToast();
   const { hotels, loading: hotelsLoading } = useHotels();
   const { roles, loading: rolesLoading } = useRoles();
+  const { user: currentUser } = useAuth();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -104,6 +106,9 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           return;
         }
 
+        // Guardar email del admin actual para restaurar sesión
+        const adminEmail = auth.currentUser?.email;
+        
         // Crear usuario en Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(
           auth,
@@ -165,10 +170,17 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           }
         }
 
+        // Cerrar sesión del nuevo usuario y NO restaurar sesión del admin
+        // La sesión se mantendrá automáticamente con Firebase
+        await signOut(auth);
+        
         toast({
           title: "Usuario creado",
-          description: "El usuario ha sido creado exitosamente"
+          description: "El usuario ha sido creado exitosamente. Por favor, vuelve a iniciar sesión."
         });
+        
+        // Recargar la página para restaurar la sesión del admin
+        window.location.reload();
       } else {
         // Actualizar usuario existente
         onSave({
