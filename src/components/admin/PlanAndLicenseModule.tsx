@@ -23,22 +23,19 @@ import {
   Clock,
   Building
 } from 'lucide-react';
-
-interface Plan {
-  id: string;
-  nombre: string;
-  tipo: 'basico' | 'estandar' | 'premium';
-  precio: number;
-  periodicidad: 'mensual' | 'anual';
-  limites: {
-    usuarios: number;
-    hoteles: number;
-    transacciones: number;
-    modulosHabilitados: string[];
-  };
-  fechaCreacion: Date;
-  estado: 'activo' | 'inactivo';
-}
+import { usePlans, Plan, MODULOS_DISPONIBLES } from '@/hooks/usePlans';
+import { PlanForm } from './PlanForm';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Licencia {
   id: string;
@@ -71,60 +68,17 @@ interface Factura {
 }
 
 const PlanAndLicenseModule: React.FC = () => {
+  const { toast } = useToast();
+  const { plans, loading, createPlan, updatePlan, deletePlan } = usePlans();
   const [activeTab, setActiveTab] = useState('planes');
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogMode, setDialogMode] = useState<'none' | 'create-plan' | 'edit-plan' | 'manage-license' | 'view-billing'>('none');
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [planToDelete, setPlanToDelete] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock data - En producción esto vendría de la base de datos
-  const planes: Plan[] = [
-    {
-      id: '1',
-      nombre: 'Plan Básico',
-      tipo: 'basico',
-      precio: 99000,
-      periodicidad: 'mensual',
-      limites: {
-        usuarios: 5,
-        hoteles: 1,
-        transacciones: 100,
-        modulosHabilitados: ['reservas', 'recepcion', 'reportes']
-      },
-      fechaCreacion: new Date('2024-01-15'),
-      estado: 'activo'
-    },
-    {
-      id: '2',
-      nombre: 'Plan Estándar',
-      tipo: 'estandar',
-      precio: 199000,
-      periodicidad: 'mensual',
-      limites: {
-        usuarios: 15,
-        hoteles: 3,
-        transacciones: 500,
-        modulosHabilitados: ['reservas', 'recepcion', 'housekeeping', 'facturacion', 'atencion_cliente', 'reportes']
-      },
-      fechaCreacion: new Date('2024-01-15'),
-      estado: 'activo'
-    },
-    {
-      id: '3',
-      nombre: 'Plan Premium',
-      tipo: 'premium',
-      precio: 399000,
-      periodicidad: 'mensual',
-      limites: {
-        usuarios: 50,
-        hoteles: 10,
-        transacciones: 2000,
-        modulosHabilitados: ['reservas', 'recepcion', 'housekeeping', 'mantenimiento', 'facturacion', 'atencion_cliente', 'food_beverage', 'proveedores', 'reportes']
-      },
-      fechaCreacion: new Date('2024-01-15'),
-      estado: 'activo'
-    }
-  ];
-
+  // Mock data para licencias y facturas - En producción esto vendría de la base de datos
   const licencias: Licencia[] = [
     {
       id: '1',
@@ -228,6 +182,82 @@ const PlanAndLicenseModule: React.FC = () => {
     }).format(amount);
   };
 
+  const handleCreatePlan = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      await createPlan(data);
+      toast({
+        title: "Plan creado exitosamente",
+        description: "El plan ha sido creado correctamente."
+      });
+      setDialogMode('none');
+    } catch (error) {
+      toast({
+        title: "Error al crear plan",
+        description: "No se pudo crear el plan. Intenta de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdatePlan = async (data: any) => {
+    if (!selectedPlan) return;
+    setIsSubmitting(true);
+    try {
+      await updatePlan(selectedPlan.id, data);
+      toast({
+        title: "Plan actualizado exitosamente",
+        description: "El plan ha sido actualizado correctamente."
+      });
+      setDialogMode('none');
+      setSelectedPlan(null);
+    } catch (error) {
+      toast({
+        title: "Error al actualizar plan",
+        description: "No se pudo actualizar el plan. Intenta de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePlan = async () => {
+    if (!planToDelete) return;
+    try {
+      await deletePlan(planToDelete);
+      toast({
+        title: "Plan eliminado exitosamente",
+        description: "El plan ha sido eliminado correctamente."
+      });
+      setPlanToDelete(null);
+    } catch (error) {
+      toast({
+        title: "Error al eliminar plan",
+        description: "No se pudo eliminar el plan. Intenta de nuevo.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getModuloNombre = (moduloId: string) => {
+    const modulo = MODULOS_DISPONIBLES.find(m => m.id === moduloId);
+    return modulo ? modulo.nombre : moduloId;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Cargando planes...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Statistics Cards */}
@@ -237,7 +267,7 @@ const PlanAndLicenseModule: React.FC = () => {
             <div className="flex items-center space-x-2">
               <CreditCard className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold">{planes.length}</p>
+                <p className="text-2xl font-bold">{plans.length}</p>
                 <p className="text-sm text-muted-foreground">Planes Activos</p>
               </div>
             </div>
@@ -304,7 +334,7 @@ const PlanAndLicenseModule: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {planes.map((plan) => (
+            {plans.map((plan) => (
               <Card key={plan.id} className="relative">
                 {plan.tipo === 'premium' && (
                   <div className="absolute -top-2 -right-2">
@@ -345,7 +375,7 @@ const PlanAndLicenseModule: React.FC = () => {
                       <div className="flex flex-wrap gap-1">
                         {plan.limites.modulosHabilitados.map((modulo) => (
                           <Badge key={modulo} variant="outline" className="text-xs">
-                            {modulo}
+                            {getModuloNombre(modulo)}
                           </Badge>
                         ))}
                       </div>
@@ -355,14 +385,19 @@ const PlanAndLicenseModule: React.FC = () => {
                         variant="outline" 
                         size="sm"
                         onClick={() => {
-                          setSelectedItem(plan);
+                          setSelectedPlan(plan);
                           setDialogMode('edit-plan');
                         }}
                       >
                         <Edit className="h-4 w-4 mr-1" />
                         Editar
                       </Button>
-                      <Button variant="outline" size="sm" className="text-red-600">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-red-600"
+                        onClick={() => setPlanToDelete(plan.id)}
+                      >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Eliminar
                       </Button>
@@ -429,13 +464,13 @@ const PlanAndLicenseModule: React.FC = () => {
                       <div>
                         <p className="text-xs text-muted-foreground">Usuarios</p>
                         <p className="text-sm font-medium">
-                          {licencia.consumoActual.usuarios} / {planes.find(p => p.id === licencia.planId)?.limites.usuarios}
+                          {licencia.consumoActual.usuarios} / {plans.find(p => p.id === licencia.planId)?.limites.usuarios}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Transacciones</p>
                         <p className="text-sm font-medium">
-                          {licencia.consumoActual.transacciones} / {planes.find(p => p.id === licencia.planId)?.limites.transacciones}
+                          {licencia.consumoActual.transacciones} / {plans.find(p => p.id === licencia.planId)?.limites.transacciones}
                         </p>
                       </div>
                       <div>
@@ -569,7 +604,7 @@ const PlanAndLicenseModule: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {licencias.map((licencia) => {
-              const plan = planes.find(p => p.id === licencia.planId);
+              const plan = plans.find(p => p.id === licencia.planId);
               if (!plan) return null;
 
               const usuariosPercentage = calculateUsagePercentage(licencia.consumoActual.usuarios, plan.limites.usuarios);
@@ -634,25 +669,51 @@ const PlanAndLicenseModule: React.FC = () => {
       </Tabs>
 
       {/* Dialog for creating/editing plans */}
-      <Dialog open={dialogMode !== 'none'} onOpenChange={() => setDialogMode('none')}>
-        <DialogContent className="max-w-2xl">
+      <Dialog 
+        open={dialogMode === 'create-plan' || dialogMode === 'edit-plan'} 
+        onOpenChange={() => {
+          setDialogMode('none');
+          setSelectedPlan(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {dialogMode === 'create-plan' && 'Crear Nuevo Plan'}
               {dialogMode === 'edit-plan' && 'Editar Plan'}
-              {dialogMode === 'manage-license' && 'Gestionar Licencia'}
-              {dialogMode === 'view-billing' && 'Detalles de Facturación'}
             </DialogTitle>
           </DialogHeader>
           
-          <div className="p-4">
-            <p className="text-muted-foreground">
-              Funcionalidad de formularios en desarrollo. 
-              Aquí se implementarán los formularios para crear/editar planes, gestionar licencias y configurar facturación.
-            </p>
-          </div>
+          <PlanForm
+            plan={selectedPlan || undefined}
+            onSubmit={dialogMode === 'create-plan' ? handleCreatePlan : handleUpdatePlan}
+            onCancel={() => {
+              setDialogMode('none');
+              setSelectedPlan(null);
+            }}
+            isSubmitting={isSubmitting}
+          />
         </DialogContent>
       </Dialog>
+
+      {/* Alert Dialog for Delete Confirmation */}
+      <AlertDialog open={!!planToDelete} onOpenChange={() => setPlanToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará el plan permanentemente. Las empresas que actualmente usan este plan
+              podrían verse afectadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePlan} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
