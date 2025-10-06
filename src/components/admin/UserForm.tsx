@@ -94,6 +94,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
             description: "Las contraseñas no coinciden",
             variant: "destructive"
           });
+          setLoading(false);
           return;
         }
 
@@ -103,21 +104,17 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
             description: "La contraseña debe tener al menos 6 caracteres",
             variant: "destructive"
           });
+          setLoading(false);
           return;
         }
 
-        // Guardar email del admin actual para restaurar sesión
-        const adminEmail = auth.currentUser?.email;
+        // Generar un ID temporal para el usuario
+        const { collection, addDoc, updateDoc, doc, increment, getDoc } = await import('firebase/firestore');
+        const tempUserId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Crear usuario en Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-        );
-
-        // Guardar datos adicionales en Firestore
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
+        // Guardar usuario en Firestore como "pendiente de activación"
+        const userRef = await addDoc(collection(db, 'users'), {
+          tempId: tempUserId,
           name: formData.name,
           lastName: formData.lastName,
           email: formData.email,
@@ -130,6 +127,8 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           permissions: formData.permissions,
           twoFactorEnabled: formData.twoFactorEnabled,
           notes: formData.notes,
+          pendingActivation: true,
+          temporaryPassword: formData.password, // Guardar temporalmente para activación
           createdAt: new Date(),
           updatedAt: new Date(),
           createdBy: auth.currentUser?.uid
@@ -138,25 +137,20 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
         // Si el rol es Gerente, actualizar el hotel con el managerId
         const selectedRole = roles.find(r => r.id === formData.role);
         if (selectedRole?.nombre === 'Gerente' && formData.hotel) {
-          const { updateDoc, doc, increment } = await import('firebase/firestore');
           await updateDoc(doc(db, 'hotels', formData.hotel), {
-            managerId: userCredential.user.uid
+            managerId: userRef.id
           });
         }
 
         // Actualizar contador de usuarios del hotel
         if (formData.hotel) {
-          const { updateDoc, doc, increment, getDoc } = await import('firebase/firestore');
-          
           // Buscar la empresa asociada al hotel
           const hotelDoc = await getDoc(doc(db, 'hotels', formData.hotel));
           if (hotelDoc.exists()) {
-            const hotelData = hotelDoc.data();
-            
             // Buscar la empresa que tiene este hotelId
-            const { query, collection, where, getDocs } = await import('firebase/firestore');
+            const { query, collection: col, where, getDocs } = await import('firebase/firestore');
             const companiesQuery = query(
-              collection(db, 'companies'),
+              col(db, 'companies'),
               where('hotelId', '==', formData.hotel)
             );
             const companiesSnapshot = await getDocs(companiesQuery);
@@ -169,18 +163,11 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
             }
           }
         }
-
-        // Cerrar sesión del nuevo usuario y NO restaurar sesión del admin
-        // La sesión se mantendrá automáticamente con Firebase
-        await signOut(auth);
         
         toast({
-          title: "Usuario creado",
-          description: "El usuario ha sido creado exitosamente. Por favor, vuelve a iniciar sesión."
+          title: "Usuario creado exitosamente",
+          description: "El usuario ha sido guardado. Debe completar su registro con las credenciales proporcionadas."
         });
-        
-        // Recargar la página para restaurar la sesión del admin
-        window.location.reload();
       } else {
         // Actualizar usuario existente
         onSave({
