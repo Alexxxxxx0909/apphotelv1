@@ -108,13 +108,31 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           return;
         }
 
-        // Generar un ID temporal para el usuario
-        const { collection, addDoc, updateDoc, doc, increment, getDoc } = await import('firebase/firestore');
-        const tempUserId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Guardar credenciales del admin para restaurar sesión
+        const adminEmail = currentUser?.email;
+        const adminPassword = prompt('Por seguridad, ingrese su contraseña de administrador para continuar:');
         
-        // Guardar usuario en Firestore como "pendiente de activación"
-        const userRef = await addDoc(collection(db, 'users'), {
-          tempId: tempUserId,
+        if (!adminPassword) {
+          toast({
+            title: "Operación cancelada",
+            description: "Se requiere la contraseña del administrador",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Crear usuario en Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+        );
+
+        const { collection, addDoc, updateDoc, doc, increment, getDoc, setDoc } = await import('firebase/firestore');
+        
+        // Guardar datos adicionales en Firestore con el UID de Firebase Auth
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
           name: formData.name,
           lastName: formData.lastName,
           email: formData.email,
@@ -127,8 +145,6 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
           permissions: formData.permissions,
           twoFactorEnabled: formData.twoFactorEnabled,
           notes: formData.notes,
-          pendingActivation: true,
-          temporaryPassword: formData.password, // Guardar temporalmente para activación
           createdAt: new Date(),
           updatedAt: new Date(),
           createdBy: auth.currentUser?.uid
@@ -138,7 +154,7 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
         const selectedRole = roles.find(r => r.id === formData.role);
         if (selectedRole?.nombre === 'Gerente' && formData.hotel) {
           await updateDoc(doc(db, 'hotels', formData.hotel), {
-            managerId: userRef.id
+            managerId: userCredential.user.uid
           });
         }
 
@@ -163,10 +179,18 @@ const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEditing =
             }
           }
         }
+
+        // Cerrar sesión del nuevo usuario
+        await signOut(auth);
+        
+        // Restaurar sesión del admin
+        if (adminEmail && adminPassword) {
+          await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+        }
         
         toast({
           title: "Usuario creado exitosamente",
-          description: "El usuario ha sido guardado. Debe completar su registro con las credenciales proporcionadas."
+          description: "El usuario puede ahora iniciar sesión con sus credenciales."
         });
       } else {
         // Actualizar usuario existente
