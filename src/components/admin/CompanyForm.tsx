@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Building, CheckCircle } from 'lucide-react';
+import { CalendarIcon, Building, CheckCircle, DollarSign, Users, Hotel, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Company } from '@/hooks/useCompanies';
+import { usePlans } from '@/hooks/usePlans';
+import { Badge } from '@/components/ui/badge';
 
 const companySchema = z.object({
   nombreComercial: z.string().min(2, 'El nombre comercial es requerido'),
@@ -49,12 +51,6 @@ interface CompanyFormProps {
   loading?: boolean;
 }
 
-// Módulos por plan
-const modulesByPlan = {
-  basico: ['reservas', 'recepcion', 'reportes'],
-  estandar: ['reservas', 'recepcion', 'housekeeping', 'facturacion', 'atencion_cliente', 'reportes'],
-  premium: ['reservas', 'recepcion', 'housekeeping', 'mantenimiento', 'facturacion', 'atencion_cliente', 'food_beverage', 'proveedores', 'reportes']
-};
 
 export const CompanyForm: React.FC<CompanyFormProps> = ({
   company,
@@ -62,6 +58,9 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
   onCancel,
   loading = false
 }) => {
+  const { plans, loading: loadingPlans } = usePlans();
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+
   const {
     register,
     handleSubmit,
@@ -98,12 +97,23 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
         tipo: 'basico',
         fechaInicio: new Date(),
         fechaVencimiento: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 año
-        modulosActivos: modulesByPlan.basico
+        modulosActivos: []
       }
     }
   });
 
   const watchedPlan = watch('plan');
+
+  // Buscar el plan seleccionado cuando cambie el tipo de plan o se carguen los planes
+  useEffect(() => {
+    if (plans.length > 0 && watchedPlan?.tipo) {
+      const plan = plans.find(p => p.tipo === watchedPlan.tipo && p.estado === 'activo');
+      setSelectedPlan(plan);
+      if (plan) {
+        setValue('plan.modulosActivos', plan.limites.modulosHabilitados);
+      }
+    }
+  }, [watchedPlan?.tipo, plans, setValue]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -285,7 +295,7 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
           <Separator />
 
           {/* Plan y Licencia */}
-            <div className="space-y-4">
+          <div className="space-y-4">
             <h4 className="font-medium">Plan y Licencia</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -294,18 +304,21 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
                   onValueChange={(value) => {
                     const planType = value as 'basico' | 'estandar' | 'premium';
                     setValue('plan.tipo', planType);
-                    // Asignar módulos automáticamente según el plan
-                    setValue('plan.modulosActivos', modulesByPlan[planType]);
                   }} 
                   defaultValue={watchedPlan?.tipo}
+                  disabled={loadingPlans}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar plan" />
+                    <SelectValue placeholder={loadingPlans ? "Cargando planes..." : "Seleccionar plan"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basico">Básico - $50/mes</SelectItem>
-                    <SelectItem value="estandar">Estándar - $100/mes</SelectItem>
-                    <SelectItem value="premium">Premium - $200/mes</SelectItem>
+                    {plans
+                      .filter(plan => plan.estado === 'activo')
+                      .map((plan) => (
+                        <SelectItem key={plan.id} value={plan.tipo}>
+                          {plan.nombre} - ${plan.precio}/{plan.periodicidad}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -325,24 +338,102 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Módulos Incluidos en el Plan</Label>
-              <div className="p-4 bg-muted rounded-lg">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {watchedPlan?.modulosActivos?.map((modulo) => (
-                    <div key={modulo} className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm capitalize">
-                        {modulo.replace('_', ' ')}
-                      </span>
+            {/* Información del Plan Seleccionado */}
+            {selectedPlan && (
+              <Card className="bg-muted/50">
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-semibold text-lg">{selectedPlan.nombre}</h5>
+                      <Badge variant="secondary" className="capitalize">
+                        {selectedPlan.tipo}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Los módulos se asignan automáticamente según el plan seleccionado
-                </p>
-              </div>
-            </div>
+
+                    {selectedPlan.descripcion && (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPlan.descripcion}
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <DollarSign className="h-4 w-4" />
+                          <span className="text-xs">Precio</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          ${selectedPlan.precio}
+                          <span className="text-xs text-muted-foreground">/{selectedPlan.periodicidad}</span>
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Users className="h-4 w-4" />
+                          <span className="text-xs">Usuarios</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          {selectedPlan.limites.usuarios === -1 ? 'Ilimitados' : selectedPlan.limites.usuarios}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Hotel className="h-4 w-4" />
+                          <span className="text-xs">Hoteles</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          {selectedPlan.limites.hoteles === -1 ? 'Ilimitados' : selectedPlan.limites.hoteles}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <TrendingUp className="h-4 w-4" />
+                          <span className="text-xs">Transacciones</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          {selectedPlan.limites.transacciones === -1 ? 'Ilimitadas' : selectedPlan.limites.transacciones}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label>Módulos Incluidos</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {selectedPlan.limites.modulosHabilitados.map((modulo: string) => (
+                          <div key={modulo} className="flex items-center space-x-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-sm capitalize">
+                              {modulo.replace('_', ' ')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedPlan.caracteristicas && selectedPlan.caracteristicas.length > 0 && (
+                      <>
+                        <Separator />
+                        <div className="space-y-2">
+                          <Label>Características del Plan</Label>
+                          <ul className="list-disc list-inside space-y-1">
+                            {selectedPlan.caracteristicas.map((caracteristica: string, index: number) => (
+                              <li key={index} className="text-sm text-muted-foreground">
+                                {caracteristica}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </CardContent>
       </Card>
