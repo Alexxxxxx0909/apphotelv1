@@ -17,9 +17,11 @@ import {
   Briefcase
 } from 'lucide-react';
 import ProfileModule from './profile/ProfileModule';
+import { useHotelModules } from '@/hooks/useHotelModules';
 
 const CollaboratorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { allowedModules, isModuleAllowed, loading: modulesLoading } = useHotelModules();
   const [activeTask, setActiveTask] = useState('pending');
   const [showProfile, setShowProfile] = useState(false);
 
@@ -36,32 +38,39 @@ const CollaboratorDashboard: React.FC = () => {
     { id: 4, type: 'service', description: 'Solicitud toallas extra 204', time: '3:15 PM', status: 'completed' }
   ];
 
-  const quickActions = [
+  const allQuickActions = [
     { 
       id: 'checkin', 
+      moduleId: 'recepcion',
       name: 'Check-in Rápido', 
       icon: Users, 
       description: 'Registro de huéspedes'
     },
     { 
       id: 'checkout', 
+      moduleId: 'recepcion',
       name: 'Check-out', 
       icon: Calendar, 
       description: 'Salida de huéspedes'
     },
     { 
       id: 'room-status', 
+      moduleId: 'housekeeping',
       name: 'Estado Habitaciones', 
       icon: Bed, 
       description: 'Actualizar estado'
     },
     { 
       id: 'guest-service', 
+      moduleId: 'atencion_cliente',
       name: 'Atención Huésped', 
       icon: Phone, 
       description: 'Solicitudes de servicio'
     }
   ];
+
+  // Filtrar acciones rápidas según módulos permitidos
+  const quickActions = allQuickActions.filter(action => isModuleAllowed(action.moduleId));
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -192,35 +201,50 @@ const CollaboratorDashboard: React.FC = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4">Acciones Rápidas</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {quickActions.map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <motion.div
-                      key={action.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <Icon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-sm">{action.name}</h4>
-                              <p className="text-xs text-muted-foreground">{action.description}</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
+            {modulesLoading ? (
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold mb-4">Acciones Rápidas</h3>
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                </div>
               </div>
-            </div>
+            ) : quickActions.length > 0 ? (
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold mb-4">Acciones Rápidas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {quickActions.map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <motion.div
+                        key={action.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="p-2 bg-primary/10 rounded-lg">
+                                <Icon className="h-5 w-5 text-primary" />
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-sm">{action.name}</h4>
+                                <p className="text-xs text-muted-foreground">{action.description}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <Card className="mb-8">
+                <CardContent className="p-6 text-center">
+                  <p className="text-muted-foreground">No hay acciones disponibles según tu plan actual</p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Recent Tasks */}
             <Card>

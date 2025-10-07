@@ -37,18 +37,36 @@ import HotelManagementModule from './management/HotelManagementModule';
 import FoodBeverageModule from './food-beverage/FoodBeverageModule';
 import SuppliersModule from './suppliers/SuppliersModule';
 import ProfileModule from './profile/ProfileModule';
+import { useHotelModules } from '@/hooks/useHotelModules';
 
 interface MenuItem {
   id: string;
+  moduleId: string;
   name: string;
   icon: React.ComponentType<any>;
   description: string;
   color: string;
 }
 
-const menuItems: MenuItem[] = [
+// Mapeo de IDs de módulos del plan a IDs de menú
+const MODULE_ID_MAP: Record<string, string> = {
+  'colaboradores': 'colaboradores',
+  'gestion_hotelera': 'gestion-hotel',
+  'reservas': 'reservas',
+  'recepcion': 'recepcion',
+  'facturacion': 'facturacion',
+  'atencion_cliente': 'atencion',
+  'housekeeping': 'housekeeping',
+  'mantenimiento': 'mantenimiento',
+  'food_beverage': 'alimentos',
+  'proveedores': 'proveedores',
+  'reportes': 'reportes'
+};
+
+const allMenuItems: MenuItem[] = [
   { 
     id: 'colaboradores',
+    moduleId: 'colaboradores',
     name: 'Colaboradores', 
     icon: UserCog, 
     description: 'Gestión de personal y permisos',
@@ -56,6 +74,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'gestion-hotel', 
+    moduleId: 'gestion_hotelera',
     name: 'Gestionar Hotel', 
     icon: Building, 
     description: 'Configuración del establecimiento',
@@ -63,6 +82,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'reservas', 
+    moduleId: 'reservas',
     name: 'Reservas', 
     icon: Calendar, 
     description: 'Gestión de reservas y disponibilidad',
@@ -70,6 +90,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'recepcion', 
+    moduleId: 'recepcion',
     name: 'Recepción', 
     icon: Users, 
     description: 'Check-in / Check-out',
@@ -77,6 +98,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'facturacion', 
+    moduleId: 'facturacion',
     name: 'Facturación', 
     icon: CreditCard, 
     description: 'Cuentas y pagos',
@@ -84,6 +106,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'atencion', 
+    moduleId: 'atencion_cliente',
     name: 'Atención al Cliente', 
     icon: Phone, 
     description: 'Solicitudes y servicios',
@@ -91,6 +114,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'housekeeping', 
+    moduleId: 'housekeeping',
     name: 'Housekeeping', 
     icon: Bed, 
     description: 'Estado de habitaciones',
@@ -98,6 +122,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'mantenimiento', 
+    moduleId: 'mantenimiento',
     name: 'Mantenimiento', 
     icon: Wrench, 
     description: 'Órdenes de trabajo',
@@ -105,6 +130,7 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'alimentos', 
+    moduleId: 'food_beverage',
     name: 'Alimentos y Bebidas', 
     icon: Coffee, 
     description: 'Restaurante y bar',
@@ -112,27 +138,15 @@ const menuItems: MenuItem[] = [
   },
   { 
     id: 'proveedores', 
+    moduleId: 'proveedores',
     name: 'Proveedores', 
     icon: Building, 
     description: 'Gestión de proveedores y compras',
     color: 'text-teal-600'
   },
   { 
-    id: 'financiera', 
-    name: 'Gestión Financiera', 
-    icon: Calculator, 
-    description: 'Contabilidad e inventario',
-    color: 'text-emerald-600'
-  },
-  { 
-    id: 'rrhh', 
-    name: 'Recursos Humanos', 
-    icon: UserCog, 
-    description: 'Empleados y nómina',
-    color: 'text-cyan-600'
-  },
-  { 
     id: 'reportes', 
+    moduleId: 'reportes',
     name: 'Reportes Gerenciales', 
     icon: BarChart3, 
     description: 'Indicadores y análisis',
@@ -142,8 +156,12 @@ const menuItems: MenuItem[] = [
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { allowedModules, isModuleAllowed, loading: modulesLoading } = useHotelModules();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeModule, setActiveModule] = useState('dashboard');
+
+  // Filtrar módulos según los permitidos por el plan
+  const menuItems = allMenuItems.filter(item => isModuleAllowed(item.moduleId));
 
   const sidebarVariants = {
     open: { width: '280px', opacity: 1 },
@@ -285,20 +303,31 @@ const Dashboard: React.FC = () => {
               </p>
             </div>
 
-            {activeModule === 'dashboard' && <MetricsCards />}
-            {activeModule === 'reservas' && <ReservationsModule />}
-            {activeModule === 'recepcion' && <ReceptionModule />}
-            {activeModule === 'atencion' && <CustomerServiceModule />}
-            {activeModule === 'facturacion' && <BillingModule />}
-            {activeModule === 'housekeeping' && <HousekeepingModule />}
-            {activeModule === 'mantenimiento' && <MaintenanceModule />}
-            {activeModule === 'colaboradores' && <CollaboratorsModule />}
-            {activeModule === 'gestion-hotel' && <HotelManagementModule />}
-            {activeModule === 'alimentos' && <FoodBeverageModule />}
-            {activeModule === 'proveedores' && <SuppliersModule />}
-            {activeModule === 'perfil' && <ProfileModule />}
+            {modulesLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Cargando módulos...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {activeModule === 'dashboard' && <MetricsCards />}
+                {activeModule === 'reservas' && isModuleAllowed('reservas') && <ReservationsModule />}
+                {activeModule === 'recepcion' && isModuleAllowed('recepcion') && <ReceptionModule />}
+                {activeModule === 'atencion' && isModuleAllowed('atencion_cliente') && <CustomerServiceModule />}
+                {activeModule === 'facturacion' && isModuleAllowed('facturacion') && <BillingModule />}
+                {activeModule === 'housekeeping' && isModuleAllowed('housekeeping') && <HousekeepingModule />}
+                {activeModule === 'mantenimiento' && isModuleAllowed('mantenimiento') && <MaintenanceModule />}
+                {activeModule === 'colaboradores' && isModuleAllowed('colaboradores') && <CollaboratorsModule />}
+                {activeModule === 'gestion-hotel' && isModuleAllowed('gestion_hotelera') && <HotelManagementModule />}
+                {activeModule === 'alimentos' && isModuleAllowed('food_beverage') && <FoodBeverageModule />}
+                {activeModule === 'proveedores' && isModuleAllowed('proveedores') && <SuppliersModule />}
+                {activeModule === 'perfil' && <ProfileModule />}
+              </>
+            )}
             
-            {activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && activeModule !== 'perfil' && (
+            {!modulesLoading && activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && activeModule !== 'perfil' && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">
