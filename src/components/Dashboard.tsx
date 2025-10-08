@@ -156,7 +156,7 @@ const allMenuItems: MenuItem[] = [
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const { allowedModules, isModuleAllowed, loading: modulesLoading } = useHotelModules();
+  const { allowedModules, isModuleAllowed, loading: modulesLoading, isLicenseValid, getDaysUntilExpiration } = useHotelModules();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeModule, setActiveModule] = useState('dashboard');
 
@@ -302,6 +302,45 @@ const Dashboard: React.FC = () => {
                 }
               </p>
             </div>
+
+            {/* Alerta de licencia */}
+            {!isLicenseValid() && (
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-red-800">
+                      Licencia Vencida
+                    </h3>
+                    <p className="text-sm text-red-700">
+                      Su licencia ha expirado. Los módulos están bloqueados hasta que renueve su plan.
+                      Por favor, contacte al administrador para renovar su licencia.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {isLicenseValid() && getDaysUntilExpiration() <= 30 && (
+              <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-yellow-800">
+                      Licencia Por Vencer
+                    </h3>
+                    <p className="text-sm text-yellow-700">
+                      Su licencia vencerá en {getDaysUntilExpiration()} días. 
+                      Le recomendamos renovarla pronto para evitar interrupciones en el servicio.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {modulesLoading ? (
               <div className="flex items-center justify-center h-64">

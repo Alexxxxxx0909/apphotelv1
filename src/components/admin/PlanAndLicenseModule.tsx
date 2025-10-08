@@ -24,7 +24,10 @@ import {
   Building
 } from 'lucide-react';
 import { usePlans, Plan, MODULOS_DISPONIBLES } from '@/hooks/usePlans';
+import { useCompanies } from '@/hooks/useCompanies';
+import { useHotels } from '@/hooks/useHotels';
 import { PlanForm } from './PlanForm';
+import { RenewLicenseDialog } from './RenewLicenseDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -70,6 +73,8 @@ interface Factura {
 const PlanAndLicenseModule: React.FC = () => {
   const { toast } = useToast();
   const { plans, loading, createPlan, updatePlan, deletePlan } = usePlans();
+  const { companies, renewLicense, suspendLicense } = useCompanies();
+  const { hotels } = useHotels();
   const [activeTab, setActiveTab] = useState('planes');
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogMode, setDialogMode] = useState<'none' | 'create-plan' | 'edit-plan' | 'manage-license' | 'view-billing'>('none');
@@ -77,44 +82,44 @@ const PlanAndLicenseModule: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [planToDelete, setPlanToDelete] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [renewDialogOpen, setRenewDialogOpen] = useState(false);
+  const [companyToRenew, setCompanyToRenew] = useState<any>(null);
 
-  // Mock data para licencias y facturas - En producción esto vendría de la base de datos
-  const licencias: Licencia[] = [
-    {
-      id: '1',
-      empresaId: '1',
-      empresaNombre: 'Hotel Bella Vista',
-      planId: '2',
-      planNombre: 'Plan Estándar',
-      fechaInicio: new Date('2024-01-01'),
-      fechaVencimiento: new Date('2024-12-31'),
-      estado: 'activa',
-      renovacionAutomatica: true,
-      consumoActual: {
-        usuarios: 8,
-        transacciones: 234
-      },
-      ultimoPago: new Date('2024-11-01'),
-      proximaFacturacion: new Date('2024-12-01')
-    },
-    {
-      id: '2',
-      empresaId: '2',
-      empresaNombre: 'Hotel Plaza Premium',
-      planId: '3',
-      planNombre: 'Plan Premium',
-      fechaInicio: new Date('2024-02-01'),
-      fechaVencimiento: new Date('2024-12-15'),
-      estado: 'renovacion_pendiente',
+  // Convertir companies a formato de licencias
+  const getEstadoLicencia = (company: any): 'activa' | 'vencida' | 'suspendida' | 'renovacion_pendiente' => {
+    const now = new Date();
+    const vencimiento = company.plan.fechaVencimiento;
+    const diasParaVencer = Math.ceil((vencimiento.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (company.estado === 'bloqueado') return 'suspendida';
+    if (vencimiento < now) return 'vencida';
+    if (diasParaVencer <= 30) return 'renovacion_pendiente';
+    return 'activa';
+  };
+
+  const licencias = companies.map(company => {
+    const plan = plans.find(p => p.tipo === company.plan.tipo);
+    const hotel = hotels.find(h => h.id === company.hotelId);
+    
+    return {
+      id: company.id,
+      empresaId: company.id,
+      empresaNombre: company.nombreComercial,
+      hotelNombre: hotel?.nombre || company.nombreComercial,
+      planId: plan?.id || '',
+      planNombre: plan?.nombre || company.plan.tipo,
+      fechaInicio: company.plan.fechaInicio,
+      fechaVencimiento: company.plan.fechaVencimiento,
+      estado: getEstadoLicencia(company),
       renovacionAutomatica: false,
       consumoActual: {
-        usuarios: 32,
-        transacciones: 1456
+        usuarios: company.estadisticas.usuarios,
+        transacciones: 0
       },
-      ultimoPago: new Date('2024-10-15'),
-      proximaFacturacion: new Date('2024-12-15')
-    }
-  ];
+      ultimoPago: company.fechaCreacion,
+      proximaFacturacion: company.plan.fechaVencimiento
+    };
+  });
 
   const facturas: Factura[] = [
     {
@@ -245,6 +250,27 @@ const PlanAndLicenseModule: React.FC = () => {
   const getModuloNombre = (moduloId: string) => {
     const modulo = MODULOS_DISPONIBLES.find(m => m.id === moduloId);
     return modulo ? modulo.nombre : moduloId;
+  };
+
+  const handleRenewLicense = async (companyId: string, months: number, newExpirationDate: Date) => {
+    setIsSubmitting(true);
+    try {
+      await renewLicense(companyId, months);
+      setRenewDialogOpen(false);
+      setCompanyToRenew(null);
+    } catch (error) {
+      console.error('Error renovando licencia:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSuspendLicense = async (companyId: string) => {
+    try {
+      await suspendLicense(companyId);
+    } catch (error) {
+      console.error('Error suspendiendo licencia:', error);
+    }
   };
 
   if (loading) {
@@ -486,19 +512,23 @@ const PlanAndLicenseModule: React.FC = () => {
                         variant="outline" 
                         size="sm"
                         onClick={() => {
-                          setSelectedItem(licencia);
-                          setDialogMode('manage-license');
+                          const company = companies.find(c => c.id === licencia.empresaId);
+                          if (company) {
+                            setCompanyToRenew(company);
+                            setRenewDialogOpen(true);
+                          }
                         }}
                       >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Gestionar
-                      </Button>
-                      <Button variant="outline" size="sm">
                         <Calendar className="h-4 w-4 mr-1" />
                         Renovar
                       </Button>
                       {licencia.estado === 'activa' && (
-                        <Button variant="outline" size="sm" className="text-orange-600">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-orange-600"
+                          onClick={() => handleSuspendLicense(licencia.empresaId)}
+                        >
                           <XCircle className="h-4 w-4 mr-1" />
                           Suspender
                         </Button>
@@ -714,6 +744,15 @@ const PlanAndLicenseModule: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Renew License Dialog */}
+      <RenewLicenseDialog
+        open={renewDialogOpen}
+        onOpenChange={setRenewDialogOpen}
+        company={companyToRenew}
+        onRenew={handleRenewLicense}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 };

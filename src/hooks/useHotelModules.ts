@@ -64,13 +64,39 @@ export const useHotelModules = () => {
     if (allowedModules.length === 0 && user?.role === 'administrador') {
       return true;
     }
+    
+    // Verificar si la licencia está vencida o bloqueada
+    if (planInfo) {
+      const now = new Date();
+      const isExpired = planInfo.fechaVencimiento < now;
+      
+      if (isExpired) {
+        return false; // Bloquear todos los módulos si está vencida
+      }
+    }
+    
     return allowedModules.includes(moduleId);
+  };
+
+  const isLicenseValid = (): boolean => {
+    if (!planInfo) return true; // Si no hay plan info, permitir (admin)
+    const now = new Date();
+    return planInfo.fechaVencimiento >= now;
+  };
+
+  const getDaysUntilExpiration = (): number => {
+    if (!planInfo) return Infinity;
+    const now = new Date();
+    const diff = planInfo.fechaVencimiento.getTime() - now.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
   return {
     allowedModules,
     planInfo,
     loading,
-    isModuleAllowed
+    isModuleAllowed,
+    isLicenseValid,
+    getDaysUntilExpiration
   };
 };

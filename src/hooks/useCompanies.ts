@@ -202,6 +202,59 @@ export const useCompanies = () => {
     }
   };
 
+  const renewLicense = async (companyId: string, months: number) => {
+    try {
+      const companyRef = doc(db, 'companies', companyId);
+      const company = companies.find(c => c.id === companyId);
+      
+      if (!company) {
+        throw new Error('Empresa no encontrada');
+      }
+
+      const newExpirationDate = new Date(company.plan.fechaVencimiento);
+      newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
+
+      await updateDoc(companyRef, {
+        'plan.fechaVencimiento': Timestamp.fromDate(newExpirationDate),
+        'estado': 'activo' // Reactivar si estaba bloqueado
+      });
+
+      toast({
+        title: "Licencia renovada",
+        description: `La licencia ha sido extendida hasta ${newExpirationDate.toLocaleDateString('es-ES')}`,
+      });
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        title: "Error",
+        description: "No se pudo renovar la licencia.",
+        variant: "destructive"
+      });
+      throw err;
+    }
+  };
+
+  const suspendLicense = async (companyId: string) => {
+    try {
+      await updateDoc(doc(db, 'companies', companyId), {
+        estado: 'bloqueado'
+      });
+
+      toast({
+        title: "Licencia suspendida",
+        description: "La licencia ha sido suspendida. Los módulos quedan bloqueados.",
+      });
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        title: "Error",
+        description: "No se pudo suspender la licencia.",
+        variant: "destructive"
+      });
+      throw err;
+    }
+  };
+
   const createManager = async (managerData: Omit<Manager, 'id' | 'fechaCreacion'>, password: string) => {
     try {
       // Guardar la sesión actual del admin
@@ -320,6 +373,8 @@ export const useCompanies = () => {
     deleteCompany,
     createManager,
     sendWelcomeEmail,
-    getCompanyStatistics
+    getCompanyStatistics,
+    renewLicense,
+    suspendLicense
   };
 };

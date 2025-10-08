@@ -14,14 +14,15 @@ import {
   AlertCircle,
   LogOut,
   User,
-  Briefcase
+  Briefcase,
+  X
 } from 'lucide-react';
 import ProfileModule from './profile/ProfileModule';
 import { useHotelModules } from '@/hooks/useHotelModules';
 
 const CollaboratorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const { allowedModules, isModuleAllowed, loading: modulesLoading } = useHotelModules();
+  const { allowedModules, isModuleAllowed, loading: modulesLoading, isLicenseValid, getDaysUntilExpiration } = useHotelModules();
   const [activeTask, setActiveTask] = useState('pending');
   const [showProfile, setShowProfile] = useState(false);
 
@@ -163,6 +164,44 @@ const CollaboratorDashboard: React.FC = () => {
                 Tus tareas y actividades del día
               </p>
             </div>
+
+            {/* Alerta de licencia */}
+            {!isLicenseValid() && (
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-red-800">
+                      Licencia Vencida
+                    </h3>
+                    <p className="text-sm text-red-700">
+                      La licencia del hotel ha expirado. Los módulos están bloqueados hasta que se renueve el plan.
+                      Por favor, contacte al administrador.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {isLicenseValid() && getDaysUntilExpiration() <= 30 && (
+              <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-yellow-800">
+                      Licencia Por Vencer
+                    </h3>
+                    <p className="text-sm text-yellow-700">
+                      La licencia del hotel vencerá en {getDaysUntilExpiration()} días. 
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Task Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
