@@ -38,8 +38,7 @@ export const useRoomTypes = (hotelId?: string) => {
 
     const q = query(
       collection(db, 'roomTypes'),
-      where('hotelId', '==', hotelId),
-      orderBy('nombre', 'asc')
+      where('hotelId', '==', hotelId)
     );
 
     const unsubscribe = onSnapshot(
@@ -50,6 +49,10 @@ export const useRoomTypes = (hotelId?: string) => {
           ...doc.data(),
           fechaCreacion: doc.data().fechaCreacion?.toDate() || new Date()
         })) as RoomType[];
+        
+        // Ordenar por nombre en el cliente
+        types.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        
         setRoomTypes(types);
         setLoading(false);
       },

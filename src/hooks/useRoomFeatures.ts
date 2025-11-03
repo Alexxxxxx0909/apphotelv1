@@ -35,8 +35,7 @@ export const useRoomFeatures = (hotelId?: string) => {
 
     const q = query(
       collection(db, 'roomFeatures'),
-      where('hotelId', '==', hotelId),
-      orderBy('nombre', 'asc')
+      where('hotelId', '==', hotelId)
     );
 
     const unsubscribe = onSnapshot(
@@ -47,6 +46,10 @@ export const useRoomFeatures = (hotelId?: string) => {
           ...doc.data(),
           fechaCreacion: doc.data().fechaCreacion?.toDate() || new Date()
         })) as RoomFeature[];
+        
+        // Ordenar por nombre en el cliente
+        featuresData.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        
         setFeatures(featuresData);
         setLoading(false);
       },
