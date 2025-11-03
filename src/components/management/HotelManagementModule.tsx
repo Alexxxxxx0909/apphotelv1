@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoomTypes } from '@/hooks/useRoomTypes';
 import { useRoomFeatures } from '@/hooks/useRoomFeatures';
+import { useRooms } from '@/hooks/useRooms';
 import { 
   Hotel, 
   Building, 
@@ -37,18 +38,6 @@ import {
   XCircle
 } from 'lucide-react';
 
-interface Room {
-  id: string;
-  numero: string;
-  tipo: string;
-  estado: 'disponible' | 'ocupada' | 'limpieza' | 'mantenimiento' | 'fuera_servicio';
-  piso: number;
-  capacidad: number;
-  precio: number;
-  caracteristicas: string[];
-  ultimaLimpieza?: Date;
-  proximoMantenimiento?: Date;
-}
 
 const HotelManagementModule: React.FC = () => {
   const { toast } = useToast();
@@ -57,6 +46,7 @@ const HotelManagementModule: React.FC = () => {
   const hotelId = user?.hotel;
   const { roomTypes, loading: loadingTypes, addRoomType, updateRoomType, deleteRoomType } = useRoomTypes(hotelId);
   const { features, loading: loadingFeatures, addFeature, updateFeature, deleteFeature } = useRoomFeatures(hotelId);
+  const { rooms, loading: loadingRooms, addRoom, updateRoom, deleteRoom } = useRooms(hotelId);
   
   const [hotelInfo, setHotelInfo] = useState({
     nombre: 'Hotel Bloom Suites',
@@ -68,30 +58,21 @@ const HotelManagementModule: React.FC = () => {
     pisos: 6
   });
 
-  const [rooms, setRooms] = useState<Room[]>([
-    {
-      id: '1',
-      numero: '101',
-      tipo: 'Individual',
-      estado: 'disponible',
-      piso: 1,
-      capacidad: 1,
-      precio: 120000,
-      caracteristicas: ['TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado'],
-      ultimaLimpieza: new Date()
-    },
-    {
-      id: '2',
-      numero: '102',
-      tipo: 'Doble',
-      estado: 'ocupada',
-      piso: 1,
-      capacidad: 2,
-      precio: 180000,
-      caracteristicas: ['TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado', 'Balcón'],
-      ultimaLimpieza: new Date()
-    }
-  ]);
+  const [newRoom, setNewRoom] = useState({
+    numero: '',
+    tipo: '',
+    tipoId: '',
+    piso: 1,
+    capacidad: 1,
+    precio: 0
+  });
+
+  const [bulkCreate, setBulkCreate] = useState({
+    tipoId: '',
+    cantidad: 0,
+    pisoInicio: 1,
+    numeroInicio: ''
+  });
 
   const [showCreateRoomDialog, setShowCreateRoomDialog] = useState(false);
   const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
@@ -144,20 +125,116 @@ const HotelManagementModule: React.FC = () => {
     ocupacionPorcentaje: Math.round((rooms.filter(r => r.estado === 'ocupada').length / rooms.length) * 100)
   };
 
-  const handleBulkCreateRooms = () => {
-    toast({
-      title: "Habitaciones creadas",
-      description: "Las habitaciones han sido generadas exitosamente con numeración correlativa.",
-    });
-    setShowBulkCreateDialog(false);
+  const handleBulkCreateRooms = async () => {
+    if (!hotelId || !bulkCreate.tipoId || bulkCreate.cantidad <= 0) {
+      toast({
+        title: "Error",
+        description: "Por favor complete todos los campos requeridos.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const selectedType = roomTypes.find(t => t.id === bulkCreate.tipoId);
+      if (!selectedType) {
+        throw new Error("Tipo de habitación no encontrado");
+      }
+
+      const baseNumber = parseInt(bulkCreate.numeroInicio) || 100;
+      const promises = [];
+
+      for (let i = 0; i < bulkCreate.cantidad; i++) {
+        const roomNumber = (baseNumber + i).toString();
+        const floor = bulkCreate.pisoInicio + Math.floor(i / 10);
+        
+        promises.push(addRoom({
+          hotelId,
+          numero: roomNumber,
+          tipo: selectedType.nombre,
+          tipoId: selectedType.id,
+          estado: 'disponible',
+          piso: floor,
+          capacidad: selectedType.capacidad,
+          precio: selectedType.precioBase,
+          caracteristicas: selectedType.caracteristicas,
+          ultimaLimpieza: new Date()
+        }));
+      }
+
+      await Promise.all(promises);
+
+      toast({
+        title: "Habitaciones creadas",
+        description: `Se han creado ${bulkCreate.cantidad} habitaciones exitosamente.`,
+      });
+      
+      setBulkCreate({
+        tipoId: '',
+        cantidad: 0,
+        pisoInicio: 1,
+        numeroInicio: ''
+      });
+      setShowBulkCreateDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudieron crear las habitaciones.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleCreateRoom = () => {
-    toast({
-      title: "Habitación creada",
-      description: "La nueva habitación ha sido registrada exitosamente.",
-    });
-    setShowCreateRoomDialog(false);
+  const handleCreateRoom = async () => {
+    if (!hotelId || !newRoom.numero || !newRoom.tipoId) {
+      toast({
+        title: "Error",
+        description: "Por favor complete todos los campos requeridos.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const selectedType = roomTypes.find(t => t.id === newRoom.tipoId);
+      if (!selectedType) {
+        throw new Error("Tipo de habitación no encontrado");
+      }
+
+      await addRoom({
+        hotelId,
+        numero: newRoom.numero,
+        tipo: selectedType.nombre,
+        tipoId: selectedType.id,
+        estado: 'disponible',
+        piso: newRoom.piso,
+        capacidad: newRoom.capacidad || selectedType.capacidad,
+        precio: newRoom.precio || selectedType.precioBase,
+        caracteristicas: selectedType.caracteristicas,
+        ultimaLimpieza: new Date()
+      });
+
+      toast({
+        title: "Habitación creada",
+        description: "La nueva habitación ha sido registrada exitosamente.",
+      });
+      
+      setNewRoom({
+        numero: '',
+        tipo: '',
+        tipoId: '',
+        piso: 1,
+        capacidad: 1,
+        precio: 0
+      });
+      setShowCreateRoomDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo crear la habitación.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCreateRoomType = async () => {
@@ -342,25 +419,32 @@ const HotelManagementModule: React.FC = () => {
     });
   };
 
-  const handleEditRoom = (roomId: string) => {
+  const handleEditRoom = async (roomId: string) => {
+    // Esta función se puede expandir para abrir un dialog de edición
     toast({
-      title: "Habitación actualizada",
-      description: "Los datos de la habitación han sido modificados.",
+      title: "Funcionalidad en desarrollo",
+      description: "La edición de habitaciones estará disponible pronto.",
     });
   };
 
-  const handleChangeRoomStatus = (roomId: string, newStatus: string) => {
-    setRooms(prev => 
-      prev.map(r => 
-        r.id === roomId 
-          ? { ...r, estado: newStatus as any }
-          : r
-      )
-    );
-    toast({
-      title: "Estado actualizado",
-      description: `La habitación ha sido marcada como ${newStatus}.`,
-    });
+  const handleChangeRoomStatus = async (roomId: string, newStatus: string) => {
+    try {
+      await updateRoom(roomId, { 
+        estado: newStatus as any,
+        ...(newStatus === 'limpieza' && { ultimaLimpieza: new Date() })
+      });
+      
+      toast({
+        title: "Estado actualizado",
+        description: `La habitación ha sido marcada como ${newStatus}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado de la habitación.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleMarkOutOfService = (roomId: string) => {
@@ -573,9 +657,9 @@ const HotelManagementModule: React.FC = () => {
                         
                         <div className="grid gap-4 py-4">
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                             <div className="space-y-2">
                               <Label htmlFor="tipoHab">Tipo de Habitación</Label>
-                              <Select>
+                              <Select value={bulkCreate.tipoId} onValueChange={(value) => setBulkCreate({...bulkCreate, tipoId: value})}>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Seleccione tipo" />
                                 </SelectTrigger>
@@ -590,18 +674,35 @@ const HotelManagementModule: React.FC = () => {
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="cantidad">Cantidad</Label>
-                              <Input id="cantidad" type="number" placeholder="10" />
+                              <Input 
+                                id="cantidad" 
+                                type="number" 
+                                placeholder="10"
+                                value={bulkCreate.cantidad || ''}
+                                onChange={(e) => setBulkCreate({...bulkCreate, cantidad: parseInt(e.target.value) || 0})}
+                              />
                             </div>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="pisoInicio">Piso de Inicio</Label>
-                              <Input id="pisoInicio" type="number" placeholder="1" />
+                              <Input 
+                                id="pisoInicio" 
+                                type="number" 
+                                placeholder="1"
+                                value={bulkCreate.pisoInicio || ''}
+                                onChange={(e) => setBulkCreate({...bulkCreate, pisoInicio: parseInt(e.target.value) || 1})}
+                              />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="numeroInicio">Número de Inicio</Label>
-                              <Input id="numeroInicio" placeholder="101" />
+                              <Input 
+                                id="numeroInicio" 
+                                placeholder="101"
+                                value={bulkCreate.numeroInicio}
+                                onChange={(e) => setBulkCreate({...bulkCreate, numeroInicio: e.target.value})}
+                              />
                             </div>
                           </div>
                         </div>
@@ -636,17 +737,37 @@ const HotelManagementModule: React.FC = () => {
                           <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="numero">Número</Label>
-                              <Input id="numero" placeholder="101" />
+                              <Input 
+                                id="numero" 
+                                placeholder="101"
+                                value={newRoom.numero}
+                                onChange={(e) => setNewRoom({...newRoom, numero: e.target.value})}
+                              />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="piso">Piso</Label>
-                              <Input id="piso" type="number" placeholder="1" />
+                              <Input 
+                                id="piso" 
+                                type="number" 
+                                placeholder="1"
+                                value={newRoom.piso || ''}
+                                onChange={(e) => setNewRoom({...newRoom, piso: parseInt(e.target.value) || 1})}
+                              />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="tipo">Tipo</Label>
-                              <Select>
+                              <Select value={newRoom.tipoId} onValueChange={(value) => {
+                                const selectedType = roomTypes.find(t => t.id === value);
+                                setNewRoom({
+                                  ...newRoom, 
+                                  tipoId: value,
+                                  tipo: selectedType?.nombre || '',
+                                  capacidad: selectedType?.capacidad || 1,
+                                  precio: selectedType?.precioBase || 0
+                                });
+                              }}>
                                 <SelectTrigger>
-                                  <SelectValue />
+                                  <SelectValue placeholder="Seleccione tipo" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {roomTypes.map(type => (
@@ -662,11 +783,23 @@ const HotelManagementModule: React.FC = () => {
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="capacidad">Capacidad</Label>
-                              <Input id="capacidad" type="number" placeholder="2" />
+                              <Input 
+                                id="capacidad" 
+                                type="number" 
+                                placeholder="2"
+                                value={newRoom.capacidad || ''}
+                                onChange={(e) => setNewRoom({...newRoom, capacidad: parseInt(e.target.value) || 1})}
+                              />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="precio">Precio Base</Label>
-                              <Input id="precio" type="number" placeholder="180000" />
+                              <Input 
+                                id="precio" 
+                                type="number" 
+                                placeholder="180000"
+                                value={newRoom.precio || ''}
+                                onChange={(e) => setNewRoom({...newRoom, precio: parseInt(e.target.value) || 0})}
+                              />
                             </div>
                           </div>
                         </div>
@@ -686,19 +819,29 @@ const HotelManagementModule: React.FC = () => {
               </CardHeader>
               
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Habitación</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Capacidad</TableHead>
-                      <TableHead>Precio</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rooms.map((room) => (
+                {loadingRooms ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Cargando habitaciones...</p>
+                  </div>
+                ) : rooms.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No hay habitaciones registradas.</p>
+                    <p className="text-sm text-muted-foreground mt-2">Cree la primera habitación para comenzar.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Habitación</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Capacidad</TableHead>
+                        <TableHead>Precio</TableHead>
+                        <TableHead>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rooms.map((room) => (
                       <TableRow key={room.id}>
                         <TableCell>
                           <div>
@@ -759,10 +902,11 @@ const HotelManagementModule: React.FC = () => {
                             </Select>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </div>
