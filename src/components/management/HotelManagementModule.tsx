@@ -9,7 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRoomTypes } from '@/hooks/useRoomTypes';
+import { useRoomFeatures } from '@/hooks/useRoomFeatures';
 import { 
   Hotel, 
   Building, 
@@ -46,18 +50,13 @@ interface Room {
   proximoMantenimiento?: Date;
 }
 
-interface RoomType {
-  id: string;
-  nombre: string;
-  descripcion: string;
-  capacidad: number;
-  precioBase: number;
-  caracteristicas: string[];
-  cantidad: number;
-}
-
 const HotelManagementModule: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  const hotelId = user?.hotel;
+  const { roomTypes, loading: loadingTypes, addRoomType, updateRoomType, deleteRoomType } = useRoomTypes(hotelId);
+  const { features, loading: loadingFeatures, addFeature, updateFeature, deleteFeature } = useRoomFeatures(hotelId);
   
   const [hotelInfo, setHotelInfo] = useState({
     nombre: 'Hotel Bloom Suites',
@@ -94,49 +93,25 @@ const HotelManagementModule: React.FC = () => {
     }
   ]);
 
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([
-    {
-      id: '1',
-      nombre: 'Individual',
-      descripcion: 'Habitación cómoda para una persona',
-      capacidad: 1,
-      precioBase: 120000,
-      caracteristicas: ['Cama individual', 'TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado'],
-      cantidad: 20
-    },
-    {
-      id: '2',
-      nombre: 'Doble',
-      descripcion: 'Habitación espaciosa para dos personas',
-      capacidad: 2,
-      precioBase: 180000,
-      caracteristicas: ['Cama matrimonial', 'TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado', 'Balcón'],
-      cantidad: 15
-    },
-    {
-      id: '3',
-      nombre: 'Suite',
-      descripcion: 'Suite de lujo con sala separada',
-      capacidad: 3,
-      precioBase: 320000,
-      caracteristicas: ['Cama king', 'Sala', 'TV Smart', 'WiFi Premium', 'Aire Acondicionado', 'Jacuzzi', 'Balcón con vista'],
-      cantidad: 8
-    },
-    {
-      id: '4',
-      nombre: 'Familiar',
-      descripcion: 'Amplia habitación para familias',
-      capacidad: 4,
-      precioBase: 250000,
-      caracteristicas: ['Cama matrimonial', 'Cama auxiliar', 'TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado', 'Minibar'],
-      cantidad: 5
-    }
-  ]);
-
   const [showCreateRoomDialog, setShowCreateRoomDialog] = useState(false);
   const [showCreateTypeDialog, setShowCreateTypeDialog] = useState(false);
   const [showBulkCreateDialog, setShowBulkCreateDialog] = useState(false);
+  const [showManageFeaturesDialog, setShowManageFeaturesDialog] = useState(false);
+  const [showEditTypeDialog, setShowEditTypeDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  
+  const [newFeatureName, setNewFeatureName] = useState('');
+  const [editingFeature, setEditingFeature] = useState<string | null>(null);
+  const [editingType, setEditingType] = useState<any>(null);
+  
+  const [newRoomType, setNewRoomType] = useState({
+    nombre: '',
+    descripcion: '',
+    capacidad: 1,
+    precioBase: 0,
+    cantidad: 0,
+    caracteristicas: [] as string[]
+  });
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -185,12 +160,186 @@ const HotelManagementModule: React.FC = () => {
     setShowCreateRoomDialog(false);
   };
 
-  const handleCreateRoomType = () => {
-    toast({
-      title: "Tipo creado",
-      description: "El nuevo tipo de habitación ha sido configurado.",
+  const handleCreateRoomType = async () => {
+    if (!hotelId) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar el hotel.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!newRoomType.nombre || !newRoomType.descripcion || newRoomType.precioBase <= 0) {
+      toast({
+        title: "Error",
+        description: "Por favor complete todos los campos requeridos.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await addRoomType({
+        hotelId,
+        nombre: newRoomType.nombre,
+        descripcion: newRoomType.descripcion,
+        capacidad: newRoomType.capacidad,
+        precioBase: newRoomType.precioBase,
+        caracteristicas: newRoomType.caracteristicas,
+        cantidad: newRoomType.cantidad
+      });
+      
+      toast({
+        title: "Tipo creado",
+        description: "El nuevo tipo de habitación ha sido configurado.",
+      });
+      
+      setNewRoomType({
+        nombre: '',
+        descripcion: '',
+        capacidad: 1,
+        precioBase: 0,
+        cantidad: 0,
+        caracteristicas: []
+      });
+      setShowCreateTypeDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo crear el tipo de habitación.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateRoomType = async () => {
+    if (!editingType?.id) return;
+
+    try {
+      await updateRoomType(editingType.id, {
+        nombre: editingType.nombre,
+        descripcion: editingType.descripcion,
+        capacidad: editingType.capacidad,
+        precioBase: editingType.precioBase,
+        caracteristicas: editingType.caracteristicas,
+        cantidad: editingType.cantidad
+      });
+      
+      toast({
+        title: "Tipo actualizado",
+        description: "El tipo de habitación ha sido actualizado.",
+      });
+      
+      setEditingType(null);
+      setShowEditTypeDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el tipo de habitación.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteRoomType = async (id: string) => {
+    try {
+      await deleteRoomType(id);
+      toast({
+        title: "Tipo eliminado",
+        description: "El tipo de habitación ha sido eliminado.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el tipo de habitación.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddFeature = async () => {
+    if (!hotelId || !newFeatureName.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingrese un nombre para la característica.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await addFeature({
+        hotelId,
+        nombre: newFeatureName.trim(),
+        activo: true
+      });
+      
+      toast({
+        title: "Característica agregada",
+        description: "La nueva característica ha sido creada.",
+      });
+      
+      setNewFeatureName('');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar la característica.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateFeature = async (id: string, nombre: string) => {
+    try {
+      await updateFeature(id, { nombre });
+      toast({
+        title: "Característica actualizada",
+        description: "La característica ha sido actualizada.",
+      });
+      setEditingFeature(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la característica.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteFeature = async (id: string) => {
+    try {
+      await deleteFeature(id);
+      toast({
+        title: "Característica eliminada",
+        description: "La característica ha sido eliminada.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la característica.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleFeatureSelection = (featureName: string) => {
+    setNewRoomType(prev => ({
+      ...prev,
+      caracteristicas: prev.caracteristicas.includes(featureName)
+        ? prev.caracteristicas.filter(f => f !== featureName)
+        : [...prev.caracteristicas, featureName]
+    }));
+  };
+
+  const toggleEditTypeFeature = (featureName: string) => {
+    if (!editingType) return;
+    setEditingType({
+      ...editingType,
+      caracteristicas: editingType.caracteristicas.includes(featureName)
+        ? editingType.caracteristicas.filter((f: string) => f !== featureName)
+        : [...editingType.caracteristicas, featureName]
     });
-    setShowCreateTypeDialog(false);
   };
 
   const handleEditRoom = (roomId: string) => {
@@ -621,147 +770,423 @@ const HotelManagementModule: React.FC = () => {
 
         {/* Tipos de Habitación */}
         <TabsContent value="types">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Tipos de Habitación</CardTitle>
-                  <CardDescription>
-                    Configure los diferentes tipos y sus características
-                  </CardDescription>
+          <div className="space-y-6">
+            {/* Gestión de Características */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Características Disponibles</CardTitle>
+                    <CardDescription>
+                      Gestione las características que pueden tener los tipos de habitación
+                    </CardDescription>
+                  </div>
+                  <Dialog open={showManageFeaturesDialog} onOpenChange={setShowManageFeaturesDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Gestionar Características
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Gestionar Características</DialogTitle>
+                        <DialogDescription>
+                          Agregue, edite o elimine características para los tipos de habitación
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Nueva característica..."
+                            value={newFeatureName}
+                            onChange={(e) => setNewFeatureName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddFeature()}
+                          />
+                          <Button onClick={handleAddFeature}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                          {loadingFeatures ? (
+                            <p className="text-center text-muted-foreground py-4">Cargando...</p>
+                          ) : features.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-4">
+                              No hay características. Agregue la primera.
+                            </p>
+                          ) : (
+                            features.map((feature) => (
+                              <div key={feature.id} className="flex items-center justify-between p-2 border rounded">
+                                {editingFeature === feature.id ? (
+                                  <>
+                                    <Input
+                                      defaultValue={feature.nombre}
+                                      onBlur={(e) => handleUpdateFeature(feature.id, e.target.value)}
+                                      onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleUpdateFeature(feature.id, e.currentTarget.value);
+                                        }
+                                      }}
+                                      autoFocus
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setEditingFeature(null)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>{feature.nombre}</span>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setEditingFeature(feature.id)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteFeature(feature.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
-                <Dialog open={showCreateTypeDialog} onOpenChange={setShowCreateTypeDialog}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nuevo Tipo
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Crear Tipo de Habitación</DialogTitle>
-                      <DialogDescription>
-                        Defina las características de un nuevo tipo de habitación
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="nombreTipo">Nombre del Tipo</Label>
-                          <Input id="nombreTipo" placeholder="Ej. Suite Premium" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="capacidadTipo">Capacidad</Label>
-                          <Input id="capacidadTipo" type="number" placeholder="2" />
-                        </div>
-                      </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {features.map((feature) => (
+                    <Badge key={feature.id} variant="secondary">
+                      {feature.nombre}
+                    </Badge>
+                  ))}
+                  {features.length === 0 && (
+                    <p className="text-muted-foreground text-sm">
+                      No hay características configuradas. Haga clic en "Gestionar Características" para agregar.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tipos de Habitación */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Tipos de Habitación</CardTitle>
+                    <CardDescription>
+                      Configure los diferentes tipos y sus características
+                    </CardDescription>
+                  </div>
+                  <Dialog open={showCreateTypeDialog} onOpenChange={setShowCreateTypeDialog}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nuevo Tipo
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Crear Tipo de Habitación</DialogTitle>
+                        <DialogDescription>
+                          Defina las características de un nuevo tipo de habitación
+                        </DialogDescription>
+                      </DialogHeader>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="descripcionTipo">Descripción</Label>
-                        <Textarea id="descripcionTipo" placeholder="Describe las características principales..." />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="precioBaseTipo">Precio Base</Label>
-                          <Input id="precioBaseTipo" type="number" placeholder="250000" />
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="nombreTipo">Nombre del Tipo</Label>
+                            <Input 
+                              id="nombreTipo" 
+                              placeholder="Ej. Suite Premium"
+                              value={newRoomType.nombre}
+                              onChange={(e) => setNewRoomType({...newRoomType, nombre: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="capacidadTipo">Capacidad</Label>
+                            <Input 
+                              id="capacidadTipo" 
+                              type="number" 
+                              placeholder="2"
+                              value={newRoomType.capacidad}
+                              onChange={(e) => setNewRoomType({...newRoomType, capacidad: parseInt(e.target.value) || 1})}
+                            />
+                          </div>
                         </div>
+                        
                         <div className="space-y-2">
-                          <Label htmlFor="cantidadTipo">Cantidad Disponible</Label>
-                          <Input id="cantidadTipo" type="number" placeholder="5" />
+                          <Label htmlFor="descripcionTipo">Descripción</Label>
+                          <Textarea 
+                            id="descripcionTipo" 
+                            placeholder="Describe las características principales..."
+                            value={newRoomType.descripcion}
+                            onChange={(e) => setNewRoomType({...newRoomType, descripcion: e.target.value})}
+                          />
                         </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Características Incluidas</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['TV', 'WiFi', 'Aire Acondicionado', 'Baño Privado', 'Balcón', 'Jacuzzi', 'Minibar', 'Vista al Mar'].map(caracteristica => (
-                            <div key={caracteristica} className="flex items-center space-x-2">
-                              <input type="checkbox" id={caracteristica} className="rounded" />
-                              <Label htmlFor={caracteristica} className="text-sm">
-                                {caracteristica}
-                              </Label>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="precioBaseTipo">Precio Base</Label>
+                            <Input 
+                              id="precioBaseTipo" 
+                              type="number" 
+                              placeholder="250000"
+                              value={newRoomType.precioBase}
+                              onChange={(e) => setNewRoomType({...newRoomType, precioBase: parseFloat(e.target.value) || 0})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="cantidadTipo">Cantidad Disponible</Label>
+                            <Input 
+                              id="cantidadTipo" 
+                              type="number" 
+                              placeholder="5"
+                              value={newRoomType.cantidad}
+                              onChange={(e) => setNewRoomType({...newRoomType, cantidad: parseInt(e.target.value) || 0})}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Características Incluidas</Label>
+                          {loadingFeatures ? (
+                            <p className="text-muted-foreground text-sm">Cargando características...</p>
+                          ) : features.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                              No hay características disponibles. Primero agregue características en "Gestionar Características".
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto border rounded p-2">
+                              {features.map(feature => (
+                                <div key={feature.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`feature-${feature.id}`}
+                                    checked={newRoomType.caracteristicas.includes(feature.nombre)}
+                                    onCheckedChange={() => toggleFeatureSelection(feature.nombre)}
+                                  />
+                                  <Label htmlFor={`feature-${feature.id}`} className="text-sm cursor-pointer">
+                                    {feature.nombre}
+                                  </Label>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                          setShowCreateTypeDialog(false);
+                          setNewRoomType({
+                            nombre: '',
+                            descripcion: '',
+                            capacidad: 1,
+                            precioBase: 0,
+                            cantidad: 0,
+                            caracteristicas: []
+                          });
+                        }}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleCreateRoomType}>
+                          Crear Tipo
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              
+              <CardContent>
+                {loadingTypes ? (
+                  <p className="text-center text-muted-foreground py-8">Cargando tipos de habitación...</p>
+                ) : roomTypes.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No hay tipos de habitación configurados. Haga clic en "Nuevo Tipo" para agregar.
+                  </p>
+                ) : (
+                  <div className="grid gap-4">
+                    {roomTypes.map((type) => (
+                      <Card key={type.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <h3 className="text-lg font-semibold">{type.nombre}</h3>
+                                <Badge variant="outline">
+                                  {type.cantidad} habitaciones
+                                </Badge>
+                              </div>
+                              <p className="text-muted-foreground">{type.descripcion}</p>
+                              <div className="flex items-center space-x-4 text-sm">
+                                <div className="flex items-center">
+                                  <Users className="h-4 w-4 mr-1" />
+                                  {type.capacidad} personas
+                                </div>
+                                <div className="flex items-center">
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  ${type.precioBase.toLocaleString()}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {type.caracteristicas.map(caracteristica => (
+                                  <Badge key={caracteristica} variant="secondary" className="text-xs">
+                                    {caracteristica}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                title="Editar tipo"
+                                onClick={() => {
+                                  setEditingType(type);
+                                  setShowEditTypeDialog(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                title="Eliminar tipo"
+                                onClick={() => handleDeleteRoomType(type.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Dialog para editar tipo */}
+          <Dialog open={showEditTypeDialog} onOpenChange={setShowEditTypeDialog}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editar Tipo de Habitación</DialogTitle>
+                <DialogDescription>
+                  Modifique las características del tipo de habitación
+                </DialogDescription>
+              </DialogHeader>
+              
+              {editingType && (
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="editNombreTipo">Nombre del Tipo</Label>
+                      <Input 
+                        id="editNombreTipo" 
+                        value={editingType.nombre}
+                        onChange={(e) => setEditingType({...editingType, nombre: e.target.value})}
+                      />
                     </div>
-                    
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowCreateTypeDialog(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleCreateRoomType}>
-                        Crear Tipo
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="grid gap-4">
-                {roomTypes.map((type) => (
-                  <Card key={type.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-lg font-semibold">{type.nombre}</h3>
-                            <Badge variant="outline">
-                              {type.cantidad} habitaciones
-                            </Badge>
+                    <div className="space-y-2">
+                      <Label htmlFor="editCapacidadTipo">Capacidad</Label>
+                      <Input 
+                        id="editCapacidadTipo" 
+                        type="number"
+                        value={editingType.capacidad}
+                        onChange={(e) => setEditingType({...editingType, capacidad: parseInt(e.target.value) || 1})}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editDescripcionTipo">Descripción</Label>
+                    <Textarea 
+                      id="editDescripcionTipo" 
+                      value={editingType.descripcion}
+                      onChange={(e) => setEditingType({...editingType, descripcion: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="editPrecioBaseTipo">Precio Base</Label>
+                      <Input 
+                        id="editPrecioBaseTipo" 
+                        type="number"
+                        value={editingType.precioBase}
+                        onChange={(e) => setEditingType({...editingType, precioBase: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editCantidadTipo">Cantidad Disponible</Label>
+                      <Input 
+                        id="editCantidadTipo" 
+                        type="number"
+                        value={editingType.cantidad}
+                        onChange={(e) => setEditingType({...editingType, cantidad: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Características Incluidas</Label>
+                    {features.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">
+                        No hay características disponibles.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto border rounded p-2">
+                        {features.map(feature => (
+                          <div key={feature.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-feature-${feature.id}`}
+                              checked={editingType.caracteristicas.includes(feature.nombre)}
+                              onCheckedChange={() => toggleEditTypeFeature(feature.nombre)}
+                            />
+                            <Label htmlFor={`edit-feature-${feature.id}`} className="text-sm cursor-pointer">
+                              {feature.nombre}
+                            </Label>
                           </div>
-                          <p className="text-muted-foreground">{type.descripcion}</p>
-                          <div className="flex items-center space-x-4 text-sm">
-                            <div className="flex items-center">
-                              <Users className="h-4 w-4 mr-1" />
-                              {type.capacidad} personas
-                            </div>
-                            <div className="flex items-center">
-                              <DollarSign className="h-4 w-4 mr-1" />
-                              ${type.precioBase.toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {type.caracteristicas.map(caracteristica => (
-                              <Badge key={caracteristica} variant="secondary" className="text-xs">
-                                {caracteristica}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                         <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            title="Editar tipo"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            title="Eliminar tipo"
-                            onClick={() => {
-                              toast({
-                                title: "Tipo eliminado",
-                                description: "El tipo de habitación ha sido eliminado.",
-                              });
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowEditTypeDialog(false);
+                  setEditingType(null);
+                }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleUpdateRoomType}>
+                  Guardar Cambios
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Estadísticas */}
