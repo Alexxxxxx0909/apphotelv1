@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Bed, 
   CheckCircle, 
@@ -13,67 +14,72 @@ import {
   Wrench,
   Calendar as CalendarIcon,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Users,
+  DollarSign
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-interface Room {
-  id: string;
-  number: string;
-  type: string;
-  floor: number;
-  status: 'available' | 'occupied' | 'maintenance' | 'dirty' | 'cleaning';
-  checkOut?: string;
-  checkIn?: string;
-  guest?: string;
-  price: number;
-}
-
-const mockRooms: Room[] = [
-  { id: '1', number: '101', type: 'Individual', floor: 1, status: 'available', price: 80 },
-  { id: '2', number: '102', type: 'Individual', floor: 1, status: 'occupied', guest: 'Juan Pérez', checkOut: '2024-01-15', price: 80 },
-  { id: '3', number: '103', type: 'Doble', floor: 1, status: 'dirty', price: 120 },
-  { id: '4', number: '201', type: 'Suite', floor: 2, status: 'available', price: 200 },
-  { id: '5', number: '202', type: 'Doble', floor: 2, status: 'maintenance', price: 120 },
-  { id: '6', number: '203', type: 'Suite', floor: 2, status: 'cleaning', price: 200 },
-  { id: '7', number: '301', type: 'Deluxe', floor: 3, status: 'available', price: 150 },
-  { id: '8', number: '302', type: 'Familiar', floor: 3, status: 'occupied', guest: 'María García', checkOut: '2024-01-16', price: 180 },
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { useRooms } from '@/hooks/useRooms';
+import { useRoomTypes } from '@/hooks/useRoomTypes';
+import { useRoomFeatures } from '@/hooks/useRoomFeatures';
 
 const statusConfig = {
-  available: { label: 'Disponible', color: 'bg-green-500', icon: CheckCircle },
-  occupied: { label: 'Ocupada', color: 'bg-red-500', icon: XCircle },
-  maintenance: { label: 'Mantenimiento', color: 'bg-yellow-500', icon: Wrench },
-  dirty: { label: 'Sucia', color: 'bg-orange-500', icon: Clock },
-  cleaning: { label: 'Limpieza', color: 'bg-blue-500', icon: RefreshCw }
+  disponible: { label: 'Disponible', color: 'bg-green-500', icon: CheckCircle },
+  ocupada: { label: 'Ocupada', color: 'bg-red-500', icon: XCircle },
+  mantenimiento: { label: 'Mantenimiento', color: 'bg-yellow-500', icon: Wrench },
+  limpieza: { label: 'Limpieza', color: 'bg-blue-500', icon: RefreshCw },
+  fuera_servicio: { label: 'Fuera de Servicio', color: 'bg-gray-500', icon: XCircle }
 };
 
 const AvailabilityControl: React.FC = () => {
+  const { user } = useAuth();
+  const hotelId = user?.hotel || '';
+  const { rooms, loading } = useRooms(hotelId);
+  const { roomTypes } = useRoomTypes(hotelId);
+  const { features } = useRoomFeatures(hotelId);
+  
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterFloor, setFilterFloor] = useState<string>('all');
-  const [rooms, setRooms] = useState<Room[]>(mockRooms);
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  const getRoomType = (roomTypeId: string) => {
+    return roomTypes.find(rt => rt.id === roomTypeId);
+  };
 
   const filteredRooms = rooms.filter(room => {
-    if (filterStatus !== 'all' && room.status !== filterStatus) return false;
-    if (filterFloor !== 'all' && room.floor.toString() !== filterFloor) return false;
+    if (filterStatus !== 'all' && room.estado !== filterStatus) return false;
+    if (filterFloor !== 'all' && room.piso?.toString() !== filterFloor) return false;
     return true;
   });
+
+  const uniqueFloors = [...new Set(rooms.map(r => r.piso).filter(Boolean))].sort();
+
+  const handleRoomClick = (room: any) => {
+    setSelectedRoom(room);
+    setIsDetailsOpen(true);
+  };
 
   const getStatusStats = () => {
     return {
       total: rooms.length,
-      available: rooms.filter(r => r.status === 'available').length,
-      occupied: rooms.filter(r => r.status === 'occupied').length,
-      maintenance: rooms.filter(r => r.status === 'maintenance').length,
-      dirty: rooms.filter(r => r.status === 'dirty').length,
-      cleaning: rooms.filter(r => r.status === 'cleaning').length
+      disponible: rooms.filter(r => r.estado === 'disponible').length,
+      ocupada: rooms.filter(r => r.estado === 'ocupada').length,
+      mantenimiento: rooms.filter(r => r.estado === 'mantenimiento').length,
+      limpieza: rooms.filter(r => r.estado === 'limpieza').length,
+      fuera_servicio: rooms.filter(r => r.estado === 'fuera_servicio').length
     };
   };
 
   const stats = getStatusStats();
-  const occupancyRate = ((stats.occupied / stats.total) * 100).toFixed(1);
+  const occupancyRate = stats.total > 0 ? ((stats.ocupada / stats.total) * 100).toFixed(1) : '0.0';
+
+  if (loading) {
+    return <div className="text-center py-8">Cargando habitaciones...</div>;
+  }
 
   return (
     <motion.div
@@ -91,26 +97,26 @@ const AvailabilityControl: React.FC = () => {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.available}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.disponible}</div>
             <div className="text-sm text-muted-foreground">Disponibles</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stats.occupied}</div>
+            <div className="text-2xl font-bold text-red-600">{stats.ocupada}</div>
             <div className="text-sm text-muted-foreground">Ocupadas</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.maintenance}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.mantenimiento}</div>
             <div className="text-sm text-muted-foreground">Mantenimiento</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{stats.dirty}</div>
-            <div className="text-sm text-muted-foreground">Sucias</div>
+            <div className="text-2xl font-bold text-blue-600">{stats.limpieza}</div>
+            <div className="text-sm text-muted-foreground">Limpieza</div>
           </CardContent>
         </Card>
         <Card>
@@ -162,11 +168,11 @@ const AvailabilityControl: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="available">Disponibles</SelectItem>
-                    <SelectItem value="occupied">Ocupadas</SelectItem>
-                    <SelectItem value="maintenance">Mantenimiento</SelectItem>
-                    <SelectItem value="dirty">Sucias</SelectItem>
-                    <SelectItem value="cleaning">Limpieza</SelectItem>
+                    <SelectItem value="disponible">Disponibles</SelectItem>
+                    <SelectItem value="ocupada">Ocupadas</SelectItem>
+                    <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                    <SelectItem value="limpieza">Limpieza</SelectItem>
+                    <SelectItem value="fuera_servicio">Fuera de Servicio</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={filterFloor} onValueChange={setFilterFloor}>
@@ -175,9 +181,11 @@ const AvailabilityControl: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="1">Piso 1</SelectItem>
-                    <SelectItem value="2">Piso 2</SelectItem>
-                    <SelectItem value="3">Piso 3</SelectItem>
+                    {uniqueFloors.map(floor => (
+                      <SelectItem key={floor} value={floor.toString()}>
+                        Piso {floor}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -185,62 +193,58 @@ const AvailabilityControl: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredRooms.map((room) => {
-                const statusInfo = statusConfig[room.status];
-                const StatusIcon = statusInfo.icon;
-                
-                return (
-                  <motion.div
-                    key={room.id}
-                    whileHover={{ scale: 1.02 }}
-                    className="cursor-pointer"
-                  >
-                    <Card className={`border-l-4 border-l-${statusInfo.color.split('-')[1]}-500`}>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <div className="font-semibold text-lg flex items-center space-x-2">
-                              <Bed className="h-4 w-4" />
-                              <span>{room.number}</span>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {room.type} - Piso {room.floor}
-                            </div>
-                          </div>
-                          <Badge 
-                            variant="secondary" 
-                            className={`${statusInfo.color} text-white`}
-                          >
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {statusInfo.label}
-                          </Badge>
-                        </div>
-                        
-                        {room.guest && (
-                          <div className="space-y-1 text-sm">
-                            <div className="text-muted-foreground">Huésped:</div>
-                            <div className="font-medium">{room.guest}</div>
-                            {room.checkOut && (
-                              <div className="text-muted-foreground">
-                                Check-out: {room.checkOut}
+              {filteredRooms.length === 0 ? (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  No se encontraron habitaciones con los filtros seleccionados
+                </div>
+              ) : (
+                filteredRooms.map((room) => {
+                  const statusInfo = statusConfig[room.estado as keyof typeof statusConfig] || statusConfig.disponible;
+                  const StatusIcon = statusInfo.icon;
+                  const roomType = getRoomType(room.tipo);
+                  
+                  return (
+                    <motion.div
+                      key={room.id}
+                      whileHover={{ scale: 1.02 }}
+                      className="cursor-pointer"
+                      onClick={() => handleRoomClick(room)}
+                    >
+                      <Card className={`border-l-4 border-l-${statusInfo.color.split('-')[1]}-500`}>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <div className="font-semibold text-lg flex items-center space-x-2">
+                                <Bed className="h-4 w-4" />
+                                <span>{room.numero}</span>
                               </div>
-                            )}
+                              <div className="text-sm text-muted-foreground">
+                                {roomType?.nombre || 'N/A'} {room.piso && `- Piso ${room.piso}`}
+                              </div>
+                            </div>
+                            <Badge 
+                              variant="secondary" 
+                              className={`${statusInfo.color} text-white`}
+                            >
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {statusInfo.label}
+                            </Badge>
                           </div>
-                        )}
-                        
-                        <div className="mt-3 flex justify-between items-center">
-                          <div className="text-sm font-medium">
-                            ${room.price}/noche
+                          
+                          <div className="mt-3 flex justify-between items-center">
+                            <div className="text-sm font-medium">
+                              ${room.precio}/noche
+                            </div>
+                            <Button size="sm" variant="outline">
+                              Ver Detalles
+                            </Button>
                           </div>
-                          <Button size="sm" variant="outline">
-                            Ver Detalles
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
@@ -266,6 +270,91 @@ const AvailabilityControl: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Detalles */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalles de Habitación {selectedRoom?.numero}</DialogTitle>
+            <DialogDescription>
+              Información completa de la habitación
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRoom && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Información General</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Número:</span>
+                      <span className="font-medium">{selectedRoom.numero}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tipo:</span>
+                      <span className="font-medium">{getRoomType(selectedRoom.tipo)?.nombre || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Piso:</span>
+                      <span className="font-medium">{selectedRoom.piso || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Estado:</span>
+                      <Badge className={statusConfig[selectedRoom.estado as keyof typeof statusConfig]?.color}>
+                        {statusConfig[selectedRoom.estado as keyof typeof statusConfig]?.label || selectedRoom.estado}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-2">Capacidad y Tarifas</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Capacidad:</span>
+                      <span className="font-medium flex items-center">
+                        <Users className="h-4 w-4 mr-1" />
+                        {selectedRoom.capacidad || 'N/A'} personas
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Precio/noche:</span>
+                      <span className="font-medium flex items-center">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        ${selectedRoom.precio}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedRoom.caracteristicas && selectedRoom.caracteristicas.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Características</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRoom.caracteristicas.map((featureId: string) => {
+                      const feature = features.find(f => f.id === featureId);
+                      return feature ? (
+                        <Badge key={featureId} variant="outline">
+                          {feature.nombre}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="font-semibold mb-2">Descripción del Tipo</h4>
+                <p className="text-sm text-muted-foreground">
+                  {getRoomType(selectedRoom.tipo)?.descripcion || 'Sin descripción'}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };

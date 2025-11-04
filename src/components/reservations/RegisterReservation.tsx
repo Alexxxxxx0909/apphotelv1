@@ -160,14 +160,6 @@ const RegisterReservation: React.FC = () => {
       return;
     }
 
-    if (!reservationData.planId) {
-      toast({
-        title: "Error",
-        description: "Por favor seleccione un plan de comida",
-        variant: "destructive"
-      });
-      return;
-    }
 
     try {
       const selectedType = roomTypes.find(t => t.id === reservationData.roomTypeId);
@@ -457,7 +449,7 @@ const RegisterReservation: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label>Plan Contratado *</Label>
+                    <Label>Plan Contratado</Label>
                     <Select value={reservationData.planId} onValueChange={(value) => setReservationData(prev => ({ ...prev, planId: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar plan" />
