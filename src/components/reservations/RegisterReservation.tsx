@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,11 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, Save, Plus, User, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRoomTypes } from '@/hooks/useRoomTypes';
+import { useRooms } from '@/hooks/useRooms';
+import { useMealPlans } from '@/hooks/useMealPlans';
+import { useReservations } from '@/hooks/useReservations';
 
 interface ReservationData {
   guestName: string;
@@ -19,11 +24,11 @@ interface ReservationData {
   guestPhone: string;
   checkIn: Date | undefined;
   checkOut: Date | undefined;
-  roomType: string;
-  roomNumber: string;
+  roomTypeId: string;
+  roomId: string;
   adults: number;
   children: number;
-  plan: string;
+  planId: string;
   pricePerNight: number;
   paymentMethod: string;
   status: string;
@@ -32,17 +37,25 @@ interface ReservationData {
 
 const RegisterReservation: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const hotelId = user?.hotel || '';
+  
+  const { roomTypes, loading: loadingTypes } = useRoomTypes(hotelId);
+  const { rooms, loading: loadingRooms } = useRooms(hotelId);
+  const { plans, loading: loadingPlans } = useMealPlans(hotelId);
+  const { addReservation } = useReservations(hotelId);
+
   const [reservationData, setReservationData] = useState<ReservationData>({
     guestName: '',
     guestEmail: '',
     guestPhone: '',
     checkIn: undefined,
     checkOut: undefined,
-    roomType: '',
-    roomNumber: '',
+    roomTypeId: '',
+    roomId: '',
     adults: 1,
     children: 0,
-    plan: '',
+    planId: '',
     pricePerNight: 0,
     paymentMethod: '',
     status: 'pendiente',
@@ -53,21 +66,46 @@ const RegisterReservation: React.FC = () => {
     `RES-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
   );
 
-  const roomTypes = [
-    { value: 'individual', label: 'Individual', price: 80 },
-    { value: 'doble', label: 'Doble', price: 120 },
-    { value: 'suite', label: 'Suite', price: 200 },
-    { value: 'deluxe', label: 'Deluxe', price: 150 },
-    { value: 'familiar', label: 'Familiar', price: 180 }
-  ];
+  const [availableRooms, setAvailableRooms] = useState(rooms);
+  const [totalPrice, setTotalPrice] = useState(0);
 
-  const plans = [
-    { value: 'solo-alojamiento', label: 'Solo Alojamiento' },
-    { value: 'desayuno', label: 'Alojamiento + Desayuno' },
-    { value: 'media-pension', label: 'Media Pensión' },
-    { value: 'pension-completa', label: 'Pensión Completa' },
-    { value: 'all-inclusive', label: 'All Inclusive' }
-  ];
+  // Filtrar habitaciones disponibles según el tipo seleccionado
+  useEffect(() => {
+    if (reservationData.roomTypeId) {
+      const selectedType = roomTypes.find(t => t.id === reservationData.roomTypeId);
+      const filtered = rooms.filter(
+        r => r.tipoId === reservationData.roomTypeId && r.estado === 'disponible'
+      );
+      setAvailableRooms(filtered);
+      
+      // Actualizar precio base según el tipo de habitación
+      if (selectedType) {
+        setReservationData(prev => ({
+          ...prev,
+          pricePerNight: selectedType.precioBase
+        }));
+      }
+    } else {
+      setAvailableRooms(rooms.filter(r => r.estado === 'disponible'));
+    }
+  }, [reservationData.roomTypeId, rooms, roomTypes]);
+
+  // Calcular precio total
+  useEffect(() => {
+    if (reservationData.checkIn && reservationData.checkOut) {
+      const nights = differenceInDays(reservationData.checkOut, reservationData.checkIn);
+      if (nights > 0) {
+        const selectedPlan = plans.find(p => p.id === reservationData.planId);
+        const planPrice = selectedPlan ? selectedPlan.precioAdicional : 0;
+        const pricePerNight = reservationData.pricePerNight + planPrice;
+        setTotalPrice(pricePerNight * nights);
+      } else {
+        setTotalPrice(0);
+      }
+    } else {
+      setTotalPrice(0);
+    }
+  }, [reservationData.checkIn, reservationData.checkOut, reservationData.pricePerNight, reservationData.planId, plans]);
 
   const paymentMethods = [
     { value: 'efectivo', label: 'Efectivo' },
@@ -83,33 +121,120 @@ const RegisterReservation: React.FC = () => {
   ];
 
   const handleRoomTypeChange = (value: string) => {
-    const selectedRoom = roomTypes.find(room => room.value === value);
+    const selectedType = roomTypes.find(t => t.id === value);
     setReservationData(prev => ({
       ...prev,
-      roomType: value,
-      pricePerNight: selectedRoom?.price || 0
+      roomTypeId: value,
+      roomId: '', // Reset room selection
+      pricePerNight: selectedType?.precioBase || 0
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleRoomChange = (value: string) => {
+    const selectedRoom = rooms.find(r => r.id === value);
+    setReservationData(prev => ({
+      ...prev,
+      roomId: value,
+      pricePerNight: selectedRoom?.precio || prev.pricePerNight
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!reservationData.guestName || !reservationData.checkIn || !reservationData.checkOut) {
       toast({
         title: "Error",
-        description: "Por favor complete los campos obligatorios",
+        description: "Por favor complete los campos obligatorios (nombre, check-in, check-out)",
         variant: "destructive"
       });
       return;
     }
 
-    toast({
-      title: "Reserva Registrada",
-      description: `Reserva ${reservationNumber} creada exitosamente`,
-    });
+    if (!reservationData.roomTypeId || !reservationData.roomId) {
+      toast({
+        title: "Error",
+        description: "Por favor seleccione el tipo de habitación y número de habitación",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    console.log('Reserva creada:', { ...reservationData, reservationNumber });
+    if (!reservationData.planId) {
+      toast({
+        title: "Error",
+        description: "Por favor seleccione un plan de comida",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const selectedType = roomTypes.find(t => t.id === reservationData.roomTypeId);
+      const selectedRoom = rooms.find(r => r.id === reservationData.roomId);
+      const selectedPlan = plans.find(p => p.id === reservationData.planId);
+
+      await addReservation({
+        hotelId,
+        reservationNumber,
+        guestName: reservationData.guestName,
+        guestEmail: reservationData.guestEmail,
+        guestPhone: reservationData.guestPhone,
+        checkIn: reservationData.checkIn!,
+        checkOut: reservationData.checkOut!,
+        adults: reservationData.adults,
+        children: reservationData.children,
+        roomType: selectedType?.nombre || '',
+        roomTypeId: reservationData.roomTypeId,
+        roomNumber: selectedRoom?.numero || '',
+        roomId: reservationData.roomId,
+        pricePerNight: reservationData.pricePerNight + (selectedPlan?.precioAdicional || 0),
+        totalPrice,
+        plan: selectedPlan?.nombre || '',
+        planId: reservationData.planId,
+        paymentMethod: reservationData.paymentMethod,
+        status: reservationData.status as any,
+        specialRequests: reservationData.specialRequests
+      });
+
+      toast({
+        title: "Reserva Registrada",
+        description: `Reserva ${reservationNumber} creada exitosamente`,
+      });
+
+      // Reset form
+      setReservationData({
+        guestName: '',
+        guestEmail: '',
+        guestPhone: '',
+        checkIn: undefined,
+        checkOut: undefined,
+        roomTypeId: '',
+        roomId: '',
+        adults: 1,
+        children: 0,
+        planId: '',
+        pricePerNight: 0,
+        paymentMethod: '',
+        status: 'pendiente',
+        specialRequests: ''
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo crear la reserva. Intente nuevamente.",
+        variant: "destructive"
+      });
+    }
   };
+
+  if (loadingTypes || loadingRooms || loadingPlans) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Cargando datos...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -206,6 +331,8 @@ const RegisterReservation: React.FC = () => {
                             selected={reservationData.checkIn}
                             onSelect={(date) => setReservationData(prev => ({ ...prev, checkIn: date }))}
                             initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                            disabled={(date) => date < new Date()}
                           />
                         </PopoverContent>
                       </Popover>
@@ -235,6 +362,8 @@ const RegisterReservation: React.FC = () => {
                             selected={reservationData.checkOut}
                             onSelect={(date) => setReservationData(prev => ({ ...prev, checkOut: date }))}
                             initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                            disabled={(date) => !reservationData.checkIn || date <= reservationData.checkIn}
                           />
                         </PopoverContent>
                       </Popover>
@@ -275,28 +404,44 @@ const RegisterReservation: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label>Tipo de Habitación</Label>
-                    <Select value={reservationData.roomType} onValueChange={handleRoomTypeChange}>
+                    <Label>Tipo de Habitación *</Label>
+                    <Select value={reservationData.roomTypeId} onValueChange={handleRoomTypeChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {roomTypes.map((room) => (
-                          <SelectItem key={room.value} value={room.value}>
-                            {room.label} - ${room.price}/noche
+                        {roomTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.nombre} - ${type.precioBase.toLocaleString()}/noche
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="roomNumber">Número de Habitación</Label>
-                    <Input
-                      id="roomNumber"
-                      value={reservationData.roomNumber}
-                      onChange={(e) => setReservationData(prev => ({ ...prev, roomNumber: e.target.value }))}
-                      placeholder="Ej: 101, 205"
-                    />
+                    <Label>Número de Habitación *</Label>
+                    <Select 
+                      value={reservationData.roomId} 
+                      onValueChange={handleRoomChange}
+                      disabled={!reservationData.roomTypeId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar habitación" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRooms.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            No hay habitaciones disponibles
+                          </SelectItem>
+                        ) : (
+                          availableRooms.map((room) => (
+                            <SelectItem key={room.id} value={room.id}>
+                              Hab. {room.numero} - Piso {room.piso}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="pricePerNight">Precio por Noche ($)</Label>
@@ -304,22 +449,23 @@ const RegisterReservation: React.FC = () => {
                       id="pricePerNight"
                       type="number"
                       value={reservationData.pricePerNight}
-                      onChange={(e) => setReservationData(prev => ({ ...prev, pricePerNight: parseFloat(e.target.value) }))}
+                      readOnly
+                      className="bg-muted"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label>Plan Contratado</Label>
-                    <Select value={reservationData.plan} onValueChange={(value) => setReservationData(prev => ({ ...prev, plan: value }))}>
+                    <Label>Plan Contratado *</Label>
+                    <Select value={reservationData.planId} onValueChange={(value) => setReservationData(prev => ({ ...prev, planId: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar plan" />
                       </SelectTrigger>
                       <SelectContent>
-                        {plans.map((plan) => (
-                          <SelectItem key={plan.value} value={plan.value}>
-                            {plan.label}
+                        {plans.filter(p => p.activo).map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.nombre} {plan.precioAdicional > 0 && `(+$${plan.precioAdicional.toLocaleString()})`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -356,6 +502,25 @@ const RegisterReservation: React.FC = () => {
                     </Select>
                   </div>
                 </div>
+
+                {/* Precio Total */}
+                {totalPrice > 0 && (
+                  <div className="pt-4 border-t">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Precio Total</p>
+                        {reservationData.checkIn && reservationData.checkOut && (
+                          <p className="text-xs text-muted-foreground">
+                            {differenceInDays(reservationData.checkOut, reservationData.checkIn)} noches
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold text-primary">
+                        ${totalPrice.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

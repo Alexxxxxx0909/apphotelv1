@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRoomTypes } from '@/hooks/useRoomTypes';
 import { useRoomFeatures } from '@/hooks/useRoomFeatures';
 import { useRooms } from '@/hooks/useRooms';
+import { useMealPlans } from '@/hooks/useMealPlans';
 import { 
   Hotel, 
   Building, 
@@ -47,6 +48,7 @@ const HotelManagementModule: React.FC = () => {
   const { roomTypes, loading: loadingTypes, addRoomType, updateRoomType, deleteRoomType } = useRoomTypes(hotelId);
   const { features, loading: loadingFeatures, addFeature, updateFeature, deleteFeature } = useRoomFeatures(hotelId);
   const { rooms, loading: loadingRooms, addRoom, updateRoom, deleteRoom } = useRooms(hotelId);
+  const { plans, loading: loadingPlans, addMealPlan, updateMealPlan, deleteMealPlan } = useMealPlans(hotelId);
   
   const [hotelInfo, setHotelInfo] = useState({
     nombre: 'Hotel Bloom Suites',
@@ -79,11 +81,21 @@ const HotelManagementModule: React.FC = () => {
   const [showBulkCreateDialog, setShowBulkCreateDialog] = useState(false);
   const [showManageFeaturesDialog, setShowManageFeaturesDialog] = useState(false);
   const [showEditTypeDialog, setShowEditTypeDialog] = useState(false);
+  const [showManagePlansDialog, setShowManagePlansDialog] = useState(false);
+  const [showEditPlanDialog, setShowEditPlanDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   
   const [newFeatureName, setNewFeatureName] = useState('');
   const [editingFeature, setEditingFeature] = useState<string | null>(null);
   const [editingType, setEditingType] = useState<any>(null);
+  const [editingPlan, setEditingPlan] = useState<any>(null);
+  
+  const [newMealPlan, setNewMealPlan] = useState({
+    nombre: '',
+    descripcion: '',
+    precioAdicional: 0,
+    activo: true
+  });
   
   const [newRoomType, setNewRoomType] = useState({
     nombre: '',
@@ -447,6 +459,87 @@ const HotelManagementModule: React.FC = () => {
     }
   };
 
+  // Funciones para gestionar planes de comida
+  const handleAddMealPlan = async () => {
+    if (!newMealPlan.nombre.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre del plan es obligatorio.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await addMealPlan({
+        hotelId,
+        ...newMealPlan
+      });
+      
+      toast({
+        title: "Plan creado",
+        description: "El plan de comida ha sido creado exitosamente.",
+      });
+      
+      setNewMealPlan({
+        nombre: '',
+        descripcion: '',
+        precioAdicional: 0,
+        activo: true
+      });
+      setShowManagePlansDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo crear el plan de comida.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateMealPlan = async () => {
+    if (!editingPlan) return;
+
+    try {
+      await updateMealPlan(editingPlan.id, {
+        nombre: editingPlan.nombre,
+        descripcion: editingPlan.descripcion,
+        precioAdicional: editingPlan.precioAdicional,
+        activo: editingPlan.activo
+      });
+      
+      toast({
+        title: "Plan actualizado",
+        description: "El plan de comida ha sido actualizado.",
+      });
+      
+      setEditingPlan(null);
+      setShowEditPlanDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el plan de comida.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteMealPlan = async (id: string) => {
+    try {
+      await deleteMealPlan(id);
+      toast({
+        title: "Plan eliminado",
+        description: "El plan de comida ha sido eliminado.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el plan de comida.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleMarkOutOfService = (roomId: string) => {
     handleChangeRoomStatus(roomId, 'fuera_servicio');
   };
@@ -461,10 +554,11 @@ const HotelManagementModule: React.FC = () => {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="general">Información General</TabsTrigger>
           <TabsTrigger value="rooms">Habitaciones</TabsTrigger>
           <TabsTrigger value="types">Tipos de Habitación</TabsTrigger>
+          <TabsTrigger value="plans">Planes de Comida</TabsTrigger>
           <TabsTrigger value="stats">Estadísticas</TabsTrigger>
         </TabsList>
 
@@ -1326,6 +1420,225 @@ const HotelManagementModule: React.FC = () => {
                   Cancelar
                 </Button>
                 <Button onClick={handleUpdateRoomType}>
+                  Guardar Cambios
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        {/* Planes de Comida */}
+        <TabsContent value="plans">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Planes de Comida Disponibles</CardTitle>
+                    <CardDescription>
+                      Configure los planes de alimentación para las reservas
+                    </CardDescription>
+                  </div>
+                  <Dialog open={showManagePlansDialog} onOpenChange={setShowManagePlansDialog}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nuevo Plan
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Crear Plan de Comida</DialogTitle>
+                        <DialogDescription>
+                          Defina un nuevo plan de alimentación para su hotel
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="nombrePlan">Nombre del Plan</Label>
+                          <Input 
+                            id="nombrePlan" 
+                            placeholder="Ej. Media Pensión"
+                            value={newMealPlan.nombre}
+                            onChange={(e) => setNewMealPlan({...newMealPlan, nombre: e.target.value})}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="descripcionPlan">Descripción</Label>
+                          <Textarea 
+                            id="descripcionPlan" 
+                            placeholder="Describe qué incluye este plan..."
+                            value={newMealPlan.descripcion}
+                            onChange={(e) => setNewMealPlan({...newMealPlan, descripcion: e.target.value})}
+                            rows={3}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="precioAdicionalPlan">Precio Adicional (por noche)</Label>
+                          <Input 
+                            id="precioAdicionalPlan" 
+                            type="number" 
+                            placeholder="0"
+                            value={newMealPlan.precioAdicional}
+                            onChange={(e) => setNewMealPlan({...newMealPlan, precioAdicional: parseFloat(e.target.value) || 0})}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Este valor se sumará al precio base de la habitación
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="activoPlan"
+                            checked={newMealPlan.activo}
+                            onCheckedChange={(checked) => setNewMealPlan({...newMealPlan, activo: checked as boolean})}
+                          />
+                          <Label htmlFor="activoPlan">Plan activo</Label>
+                        </div>
+                      </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowManagePlansDialog(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleAddMealPlan}>
+                          Crear Plan
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingPlans ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Cargando planes...</p>
+                  </div>
+                ) : plans.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No hay planes de comida configurados.</p>
+                    <Button onClick={() => setShowManagePlansDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Crear primer plan
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {plans.map((plan) => (
+                      <Card key={plan.id} className="relative">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <CardTitle className="text-lg">{plan.nombre}</CardTitle>
+                            <Badge variant={plan.activo ? "default" : "secondary"}>
+                              {plan.activo ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </div>
+                          {plan.descripcion && (
+                            <CardDescription>{plan.descripcion}</CardDescription>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Precio adicional:</span>
+                              <span className="font-semibold">
+                                ${plan.precioAdicional.toLocaleString()} / noche
+                              </span>
+                            </div>
+                            <div className="flex space-x-2 pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => {
+                                  setEditingPlan(plan);
+                                  setShowEditPlanDialog(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Editar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteMealPlan(plan.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Dialog para editar plan */}
+          <Dialog open={showEditPlanDialog} onOpenChange={setShowEditPlanDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar Plan de Comida</DialogTitle>
+                <DialogDescription>
+                  Modifique los detalles del plan de alimentación
+                </DialogDescription>
+              </DialogHeader>
+              
+              {editingPlan && (
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editNombrePlan">Nombre del Plan</Label>
+                    <Input 
+                      id="editNombrePlan" 
+                      value={editingPlan.nombre}
+                      onChange={(e) => setEditingPlan({...editingPlan, nombre: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editDescripcionPlan">Descripción</Label>
+                    <Textarea 
+                      id="editDescripcionPlan" 
+                      value={editingPlan.descripcion}
+                      onChange={(e) => setEditingPlan({...editingPlan, descripcion: e.target.value})}
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editPrecioAdicionalPlan">Precio Adicional (por noche)</Label>
+                    <Input 
+                      id="editPrecioAdicionalPlan" 
+                      type="number" 
+                      value={editingPlan.precioAdicional}
+                      onChange={(e) => setEditingPlan({...editingPlan, precioAdicional: parseFloat(e.target.value) || 0})}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="editActivoPlan"
+                      checked={editingPlan.activo}
+                      onCheckedChange={(checked) => setEditingPlan({...editingPlan, activo: checked as boolean})}
+                    />
+                    <Label htmlFor="editActivoPlan">Plan activo</Label>
+                  </div>
+                </div>
+              )}
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowEditPlanDialog(false);
+                  setEditingPlan(null);
+                }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleUpdateMealPlan}>
                   Guardar Cambios
                 </Button>
               </DialogFooter>
