@@ -17,6 +17,7 @@ import { useRoomTypes } from '@/hooks/useRoomTypes';
 import { useRooms } from '@/hooks/useRooms';
 import { useMealPlans } from '@/hooks/useMealPlans';
 import { useReservations } from '@/hooks/useReservations';
+import { usePricingRules } from '@/hooks/usePricingRules';
 
 interface ReservationData {
   guestName: string;
@@ -44,6 +45,7 @@ const RegisterReservation: React.FC = () => {
   const { rooms, loading: loadingRooms } = useRooms(hotelId);
   const { plans, loading: loadingPlans } = useMealPlans(hotelId);
   const { addReservation } = useReservations(hotelId);
+  const { calculatePrice } = usePricingRules(hotelId);
 
   const [reservationData, setReservationData] = useState<ReservationData>({
     guestName: '',
@@ -78,17 +80,21 @@ const RegisterReservation: React.FC = () => {
       );
       setAvailableRooms(filtered);
       
-      // Actualizar precio base según el tipo de habitación
+      // Actualizar precio base según el tipo de habitación con reglas dinámicas
       if (selectedType) {
+        const basePrice = selectedType.precioBase;
+        const planPrice = reservationData.planId ? (plans.find(p => p.id === reservationData.planId)?.precioAdicional || 0) : 0;
+        const dynamicPrice = calculatePrice(basePrice + planPrice, reservationData.roomTypeId, reservationData.checkIn || new Date());
+        
         setReservationData(prev => ({
           ...prev,
-          pricePerNight: selectedType.precioBase
+          pricePerNight: dynamicPrice
         }));
       }
     } else {
       setAvailableRooms(rooms.filter(r => r.estado === 'disponible'));
     }
-  }, [reservationData.roomTypeId, rooms, roomTypes]);
+  }, [reservationData.roomTypeId, reservationData.planId, reservationData.checkIn, rooms, roomTypes, plans, calculatePrice]);
 
   // Calcular precio total
   useEffect(() => {

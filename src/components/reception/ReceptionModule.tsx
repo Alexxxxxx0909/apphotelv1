@@ -19,6 +19,7 @@ import CheckInManagement from './CheckInManagement';
 import CheckOutManagement from './CheckOutManagement';
 import GuestGroupManagement from './GuestGroupManagement';
 import InvoiceGeneration from './InvoiceGeneration';
+import ReservationsList from './ReservationsList';
 import ReservationReports from './reports/ReservationReports';
 import OccupancyReports from './reports/OccupancyReports';
 import MovementReports from './reports/MovementReports';
@@ -59,6 +60,14 @@ const receptionOptions: ReceptionOption[] = [
     description: 'Registro de acompañantes y grupos',
     icon: UserPlus,
     color: 'text-purple-600',
+    category: 'operations'
+  },
+  {
+    id: 'reservations-list',
+    name: 'Ver Reservas',
+    description: 'Visualizar todas las reservas',
+    icon: Calendar,
+    color: 'text-indigo-600',
     category: 'operations'
   },
   {
@@ -131,6 +140,8 @@ const ReceptionModule: React.FC = () => {
         return <CheckOutManagement />;
       case 'groups':
         return <GuestGroupManagement />;
+      case 'reservations-list':
+        return <ReservationsList />;
       case 'invoices':
         return <InvoiceGeneration />;
       case 'reservation-reports':

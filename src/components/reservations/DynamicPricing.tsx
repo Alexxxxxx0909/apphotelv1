@@ -1,272 +1,198 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Calendar as CalendarIcon, 
-  Plus, 
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
   Edit,
   Trash2,
-  Percent,
-  DollarSign,
-  Tag
+  DollarSign
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRoomTypes } from '@/hooks/useRoomTypes';
+import { usePricingRules } from '@/hooks/usePricingRules';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-
-interface PricingRule {
-  id: string;
-  name: string;
-  type: 'seasonal' | 'discount' | 'promotion' | 'event';
-  roomTypes: string[];
-  startDate: Date;
-  endDate: Date;
-  adjustmentType: 'percentage' | 'fixed';
-  adjustmentValue: number;
-  isActive: boolean;
-  priority: number;
-  description: string;
-}
-
-interface BasePrice {
-  roomType: string;
-  basePrice: number;
-  weekendSurcharge: number;
-}
-
-const basePrices: BasePrice[] = [
-  { roomType: 'individual', basePrice: 80, weekendSurcharge: 10 },
-  { roomType: 'doble', basePrice: 120, weekendSurcharge: 15 },
-  { roomType: 'suite', basePrice: 200, weekendSurcharge: 25 },
-  { roomType: 'deluxe', basePrice: 150, weekendSurcharge: 20 },
-  { roomType: 'familiar', basePrice: 180, weekendSurcharge: 22 }
-];
-
-const mockPricingRules: PricingRule[] = [
-  {
-    id: '1',
-    name: 'Temporada Alta - Diciembre',
-    type: 'seasonal',
-    roomTypes: ['suite', 'deluxe'],
-    startDate: new Date('2024-12-15'),
-    endDate: new Date('2024-12-31'),
-    adjustmentType: 'percentage',
-    adjustmentValue: 30,
-    isActive: true,
-    priority: 1,
-    description: 'Incremento de temporada navideña'
-  },
-  {
-    id: '2',
-    name: 'Descuento Reserva Anticipada',
-    type: 'discount',
-    roomTypes: ['individual', 'doble'],
-    startDate: new Date('2024-02-01'),
-    endDate: new Date('2024-03-31'),
-    adjustmentType: 'percentage',
-    adjustmentValue: -15,
-    isActive: true,
-    priority: 2,
-    description: 'Descuento por reservar con 30 días de anticipación'
-  }
-];
-
-const roomTypeLabels = {
-  individual: 'Individual',
-  doble: 'Doble',
-  suite: 'Suite',
-  deluxe: 'Deluxe',
-  familiar: 'Familiar'
-};
 
 const ruleTypeLabels = {
-  seasonal: { label: 'Temporada', color: 'bg-blue-100 text-blue-800' },
-  discount: { label: 'Descuento', color: 'bg-green-100 text-green-800' },
-  promotion: { label: 'Promoción', color: 'bg-purple-100 text-purple-800' },
-  event: { label: 'Evento', color: 'bg-orange-100 text-orange-800' }
+  temporada: { label: 'Temporada', color: 'bg-blue-500' },
+  descuento: { label: 'Descuento', color: 'bg-green-500' },
+  promocion: { label: 'Promoción', color: 'bg-purple-500' }
 };
 
 const DynamicPricing: React.FC = () => {
-  const { toast } = useToast();
-  const [pricingRules, setPricingRules] = useState<PricingRule[]>(mockPricingRules);
+  const { user } = useAuth();
+  const hotelId = user?.hotel || '';
+  const { roomTypes, loading: loadingRoomTypes } = useRoomTypes(hotelId);
+  const { 
+    pricingRules, 
+    loading: loadingRules, 
+    addPricingRule, 
+    updatePricingRule, 
+    deletePricingRule,
+    calculatePrice 
+  } = usePricingRules(hotelId);
+
   const [showForm, setShowForm] = useState(false);
-  const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
+  const [editingRule, setEditingRule] = useState<any | null>(null);
+
+  // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    type: '',
+    nombre: '',
+    tipo: 'temporada' as 'temporada' | 'descuento' | 'promocion',
     roomTypes: [] as string[],
-    startDate: undefined as Date | undefined,
-    endDate: undefined as Date | undefined,
-    adjustmentType: 'percentage',
-    adjustmentValue: 0,
-    description: ''
+    fechaInicio: '',
+    fechaFin: '',
+    ajuste: 0,
+    prioridad: 1,
+    descripcion: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.type || !formData.startDate || !formData.endDate) {
-      toast({
-        title: "Error",
-        description: "Por favor complete todos los campos obligatorios",
-        variant: "destructive"
-      });
+
+    if (!formData.nombre || formData.roomTypes.length === 0 || !formData.fechaInicio || !formData.fechaFin) {
+      toast.error('Por favor completa todos los campos requeridos');
       return;
     }
 
-    const newRule: PricingRule = {
-      id: editingRule?.id || Date.now().toString(),
-      name: formData.name,
-      type: formData.type as any,
-      roomTypes: formData.roomTypes,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
-      adjustmentType: formData.adjustmentType as any,
-      adjustmentValue: formData.adjustmentValue,
-      isActive: true,
-      priority: pricingRules.length + 1,
-      description: formData.description
-    };
-
-    if (editingRule) {
-      setPricingRules(prev => prev.map(rule => rule.id === editingRule.id ? newRule : rule));
-      toast({
-        title: "Regla Actualizada",
-        description: "La regla de precios ha sido actualizada exitosamente",
-      });
-    } else {
-      setPricingRules(prev => [...prev, newRule]);
-      toast({
-        title: "Regla Creada",
-        description: "Nueva regla de precios creada exitosamente",
-      });
+    try {
+      if (editingRule) {
+        await updatePricingRule(editingRule.id, {
+          ...formData,
+          fechaInicio: new Date(formData.fechaInicio),
+          fechaFin: new Date(formData.fechaFin)
+        });
+        toast.success('Regla actualizada exitosamente');
+      } else {
+        await addPricingRule({
+          hotelId,
+          ...formData,
+          fechaInicio: new Date(formData.fechaInicio),
+          fechaFin: new Date(formData.fechaFin),
+          activa: true
+        });
+        toast.success('Regla creada exitosamente');
+      }
+      resetForm();
+    } catch (error) {
+      toast.error('Error al guardar la regla');
+      console.error(error);
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      type: '',
+      nombre: '',
+      tipo: 'temporada',
       roomTypes: [],
-      startDate: undefined,
-      endDate: undefined,
-      adjustmentType: 'percentage',
-      adjustmentValue: 0,
-      description: ''
+      fechaInicio: '',
+      fechaFin: '',
+      ajuste: 0,
+      prioridad: 1,
+      descripcion: ''
     });
-    setShowForm(false);
     setEditingRule(null);
+    setShowForm(false);
   };
 
-  const handleEdit = (rule: PricingRule) => {
+  const handleEdit = (rule: any) => {
     setEditingRule(rule);
     setFormData({
-      name: rule.name,
-      type: rule.type,
+      nombre: rule.nombre,
+      tipo: rule.tipo,
       roomTypes: rule.roomTypes,
-      startDate: rule.startDate,
-      endDate: rule.endDate,
-      adjustmentType: rule.adjustmentType,
-      adjustmentValue: rule.adjustmentValue,
-      description: rule.description
+      fechaInicio: format(rule.fechaInicio, 'yyyy-MM-dd'),
+      fechaFin: format(rule.fechaFin, 'yyyy-MM-dd'),
+      ajuste: rule.ajuste,
+      prioridad: rule.prioridad,
+      descripcion: rule.descripcion || ''
     });
     setShowForm(true);
   };
 
-  const handleDelete = (ruleId: string) => {
-    setPricingRules(prev => prev.filter(rule => rule.id !== ruleId));
-    toast({
-      title: "Regla Eliminada",
-      description: "La regla de precios ha sido eliminada",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await deletePricingRule(id);
+      toast.success('Regla eliminada');
+    } catch (error) {
+      toast.error('Error al eliminar la regla');
+    }
   };
 
-  const toggleRuleStatus = (ruleId: string) => {
-    setPricingRules(prev => prev.map(rule => 
-      rule.id === ruleId ? { ...rule, isActive: !rule.isActive } : rule
-    ));
+  const toggleRuleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await updatePricingRule(id, { activa: !currentStatus });
+      toast.success('Estado actualizado');
+    } catch (error) {
+      toast.error('Error al actualizar el estado');
+    }
   };
 
-  const calculatePrice = (roomType: string, basePrice: number, rules: PricingRule[]) => {
-    let finalPrice = basePrice;
-    const applicableRules = rules.filter(rule => 
-      rule.isActive && rule.roomTypes.includes(roomType)
-    ).sort((a, b) => a.priority - b.priority);
-
-    applicableRules.forEach(rule => {
-      if (rule.adjustmentType === 'percentage') {
-        finalPrice += (basePrice * rule.adjustmentValue / 100);
-      } else {
-        finalPrice += rule.adjustmentValue;
-      }
-    });
-
-    return Math.max(0, finalPrice);
-  };
+  if (loadingRoomTypes || loadingRules) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Cargando información...</p>
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      {/* Precios Base */}
+    <div className="space-y-6">
+      {/* Base Prices with Dynamic Pricing */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <span>Precios Base por Tipo de Habitación</span>
-          </CardTitle>
+          <CardTitle>Precios Base por Tipo de Habitación</CardTitle>
           <CardDescription>
             Tarifas actuales con reglas de precios aplicadas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {basePrices.map((room) => {
-              const currentPrice = calculatePrice(room.roomType, room.basePrice, pricingRules);
-              const difference = currentPrice - room.basePrice;
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {roomTypes.map((roomType) => {
+              const dynamicPrice = calculatePrice(roomType.precioBase, roomType.id);
+              const difference = dynamicPrice - roomType.precioBase;
               
               return (
-                <Card key={room.roomType} className="text-center">
-                  <CardContent className="p-4">
-                    <h4 className="font-semibold mb-2">
-                      {roomTypeLabels[room.roomType as keyof typeof roomTypeLabels]}
-                    </h4>
-                    <div className="space-y-1">
-                      <div className="text-2xl font-bold text-primary">
-                        ${currentPrice.toFixed(0)}
+                <Card key={roomType.id} className="overflow-hidden">
+                  <CardHeader className="bg-muted/50 pb-3">
+                    <CardTitle className="text-lg">{roomType.nombre}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-bold">${dynamicPrice}</span>
+                        {difference !== 0 && (
+                          <Badge variant={difference > 0 ? "default" : "secondary"} className="text-xs">
+                            {difference > 0 ? '+' : ''}{difference > 0 ? <TrendingUp className="h-3 w-3 mr-1 inline" /> : <TrendingDown className="h-3 w-3 mr-1 inline" />}
+                            ${Math.abs(difference)}
+                          </Badge>
+                        )}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        Base: ${room.basePrice}
-                      </div>
-                      {difference !== 0 && (
-                        <div className={`text-xs flex items-center justify-center space-x-1 ${
-                          difference > 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {difference > 0 ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          <span>
-                            {difference > 0 ? '+' : ''}${difference.toFixed(0)}
-                          </span>
-                        </div>
-                      )}
+                      <p className="text-sm text-muted-foreground">
+                        Base: ${roomType.precioBase}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -276,291 +202,325 @@ const DynamicPricing: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Estadísticas */}
+      {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-primary">{pricingRules.length}</div>
-            <div className="text-sm text-muted-foreground">Reglas Totales</div>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Reglas Totales</p>
+                <p className="text-3xl font-bold">{pricingRules.length}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-muted-foreground" />
+            </div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {pricingRules.filter(r => r.isActive).length}
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Activas</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {pricingRules.filter(r => r.activa).length}
+                </p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-600" />
             </div>
-            <div className="text-sm text-muted-foreground">Activas</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {pricingRules.filter(r => r.type === 'seasonal').length}
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Temporales</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {pricingRules.filter(r => r.tipo === 'temporada').length}
+                </p>
+              </div>
+              <Calendar className="h-8 w-8 text-blue-600" />
             </div>
-            <div className="text-sm text-muted-foreground">Temporales</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {pricingRules.filter(r => r.adjustmentValue < 0).length}
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Descuentos</p>
+                <p className="text-3xl font-bold text-purple-600">
+                  {pricingRules.filter(r => r.tipo === 'descuento').length}
+                </p>
+              </div>
+              <TrendingDown className="h-8 w-8 text-purple-600" />
             </div>
-            <div className="text-sm text-muted-foreground">Descuentos</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Botón Nueva Regla */}
-      <div className="flex justify-between items-center">
+      {/* Header with New Rule Button */}
+      <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Reglas de Precios Dinámicos</h3>
-          <p className="text-muted-foreground">Gestiona las tarifas por temporada, descuentos y promociones</p>
+          <p className="text-sm text-muted-foreground">
+            Gestiona las tarifas por temporada, descuentos y promociones
+          </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Nueva Regla</span>
+        <Button onClick={() => setShowForm(!showForm)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva Regla
         </Button>
       </div>
 
-      {/* Formulario */}
+      {/* Form */}
       {showForm && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-        >
-          <Card className="border-l-4 border-l-purple-500">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Tag className="h-5 w-5" />
-                <span>{editingRule ? 'Editar' : 'Nueva'} Regla de Precios</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nombre de la Regla *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Ej: Temporada Alta Verano"
-                    />
-                  </div>
-                  <div>
-                    <Label>Tipo de Regla *</Label>
-                    <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="seasonal">Temporada</SelectItem>
-                        <SelectItem value="discount">Descuento</SelectItem>
-                        <SelectItem value="promotion">Promoción</SelectItem>
-                        <SelectItem value="event">Evento</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader>
+            <CardTitle>{editingRule ? 'Editar' : 'Nueva'} Regla de Precios</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nombre">Nombre de la Regla *</Label>
+                  <Input
+                    id="nombre"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                    placeholder="Ej: Temporada Alta Verano"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Fecha de Inicio *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formData.startDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.startDate ? (
-                            format(formData.startDate, "PPP", { locale: es })
-                          ) : (
-                            <span>Seleccionar fecha</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formData.startDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, startDate: date }))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div>
-                    <Label>Fecha de Fin *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formData.endDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.endDate ? (
-                            format(formData.endDate, "PPP", { locale: es })
-                          ) : (
-                            <span>Seleccionar fecha</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formData.endDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, endDate: date }))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tipo">Tipo de Regla *</Label>
+                  <Select
+                    value={formData.tipo}
+                    onValueChange={(value: any) => 
+                      setFormData({ ...formData, tipo: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="temporada">Temporada</SelectItem>
+                      <SelectItem value="descuento">Descuento</SelectItem>
+                      <SelectItem value="promocion">Promoción</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipos de Habitación *</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {roomTypes.map((roomType) => (
+                    <label
+                      key={roomType.id}
+                      className="flex items-center space-x-2 cursor-pointer p-2 rounded border hover:bg-accent"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.roomTypes.includes(roomType.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              roomTypes: [...formData.roomTypes, roomType.id]
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              roomTypes: formData.roomTypes.filter(t => t !== roomType.id)
+                            });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{roomType.nombre}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fechaInicio">Fecha Inicio *</Label>
+                  <Input
+                    id="fechaInicio"
+                    type="date"
+                    value={formData.fechaInicio}
+                    onChange={(e) => setFormData({ ...formData, fechaInicio: e.target.value })}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Tipo de Ajuste</Label>
-                    <Select value={formData.adjustmentType} onValueChange={(value) => setFormData(prev => ({ ...prev, adjustmentType: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="percentage">Porcentaje</SelectItem>
-                        <SelectItem value="fixed">Monto Fijo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="adjustmentValue">
-                      Valor del Ajuste {formData.adjustmentType === 'percentage' ? '(%)' : '($)'}
-                    </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="fechaFin">Fecha Fin *</Label>
+                  <Input
+                    id="fechaFin"
+                    type="date"
+                    value={formData.fechaFin}
+                    onChange={(e) => setFormData({ ...formData, fechaFin: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ajuste">Ajuste de Precio (%) *</Label>
+                  <div className="flex gap-2">
                     <Input
-                      id="adjustmentValue"
+                      id="ajuste"
                       type="number"
-                      value={formData.adjustmentValue}
-                      onChange={(e) => setFormData(prev => ({ ...prev, adjustmentValue: parseFloat(e.target.value) }))}
-                      placeholder={formData.adjustmentType === 'percentage' ? 'Ej: 20 o -15' : 'Ej: 50 o -25'}
+                      value={formData.ajuste}
+                      onChange={(e) => setFormData({ ...formData, ajuste: Number(e.target.value) })}
+                      placeholder="Ej: 30 o -15"
                     />
+                    <span className="flex items-center px-3 border rounded-md bg-muted text-sm">
+                      {formData.ajuste > 0 ? '+' : ''}{formData.ajuste}%
+                    </span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Valores positivos aumentan el precio, negativos lo reducen
+                  </p>
                 </div>
 
-                <div className="flex justify-end space-x-4">
-                  <Button type="button" variant="outline" onClick={resetForm}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">
-                    {editingRule ? 'Actualizar' : 'Crear'} Regla
-                  </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="prioridad">Prioridad</Label>
+                  <Input
+                    id="prioridad"
+                    type="number"
+                    min="1"
+                    value={formData.prioridad}
+                    onChange={(e) => setFormData({ ...formData, prioridad: Number(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mayor prioridad se aplica primero
+                  </p>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+              </div>
 
-      {/* Lista de Reglas */}
-      <div className="space-y-4">
-        {pricingRules.map((rule) => {
-          const typeInfo = ruleTypeLabels[rule.type];
-          
-          return (
-            <motion.div
-              key={rule.id}
-              whileHover={{ scale: 1.01 }}
-            >
-              <Card className={`border-l-4 ${rule.isActive ? 'border-l-green-500' : 'border-l-gray-400'}`}>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h4 className="font-semibold text-lg">{rule.name}</h4>
-                        <Badge className={typeInfo.color}>
-                          {typeInfo.label}
-                        </Badge>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-muted-foreground">Activa:</span>
-                          <Switch 
-                            checked={rule.isActive}
-                            onCheckedChange={() => toggleRuleStatus(rule.id)}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-2">
-                        <div>
-                          <strong>Período:</strong> {format(rule.startDate, "dd/MM/yyyy")} - {format(rule.endDate, "dd/MM/yyyy")}
-                        </div>
-                        <div>
-                          <strong>Ajuste:</strong> 
-                          {rule.adjustmentType === 'percentage' ? (
-                            <span className={rule.adjustmentValue > 0 ? 'text-red-600' : 'text-green-600'}>
-                              {rule.adjustmentValue > 0 ? '+' : ''}{rule.adjustmentValue}%
-                            </span>
-                          ) : (
-                            <span className={rule.adjustmentValue > 0 ? 'text-red-600' : 'text-green-600'}>
-                              {rule.adjustmentValue > 0 ? '+' : ''}${rule.adjustmentValue}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <strong>Habitaciones:</strong> {rule.roomTypes.map(type => 
-                            roomTypeLabels[type as keyof typeof roomTypeLabels]
-                          ).join(', ')}
-                        </div>
-                      </div>
-                      
-                      {rule.description && (
-                        <div className="text-sm text-muted-foreground">
-                          <strong>Descripción:</strong> {rule.description}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(rule)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(rule.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Textarea
+                  id="descripcion"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  placeholder="Descripción opcional de la regla..."
+                  rows={3}
+                />
+              </div>
 
-      {pricingRules.length === 0 && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No hay reglas de precios configuradas</h3>
-            <p className="text-muted-foreground">
-              Crea reglas para ajustar automáticamente los precios según temporadas o promociones
-            </p>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={resetForm}>
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  {editingRule ? 'Actualizar' : 'Crear'} Regla
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
       )}
-    </motion.div>
+
+      {/* Pricing Rules List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Reglas de Precios Dinámicos</CardTitle>
+          <CardDescription>
+            Gestiona las tarifas por temporada, descuentos y promociones
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {pricingRules.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay reglas de precios configuradas
+              </div>
+            ) : (
+              pricingRules.map((rule) => (
+                <Card key={rule.id} className={!rule.activa ? 'opacity-60' : ''}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold">{rule.nombre}</h4>
+                          <Badge className={`${ruleTypeLabels[rule.tipo].color} text-white`}>
+                            {ruleTypeLabels[rule.tipo].label}
+                          </Badge>
+                          <Badge variant="outline" className="flex items-center gap-2">
+                            <span>Activa:</span>
+                            <Switch
+                              checked={rule.activa}
+                              onCheckedChange={() => toggleRuleStatus(rule.id, rule.activa)}
+                              className="scale-75"
+                            />
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                              Período: {format(rule.fechaInicio, 'dd/MM/yyyy', { locale: es })} - {format(rule.fechaFin, 'dd/MM/yyyy', { locale: es })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {rule.ajuste > 0 ? (
+                              <TrendingUp className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <TrendingDown className="h-4 w-4 text-red-600" />
+                            )}
+                            <span>
+                              Ajuste: <span className={rule.ajuste > 0 ? 'text-green-600' : 'text-red-600'}>
+                                {rule.ajuste > 0 ? '+' : ''}{rule.ajuste}%
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Habitaciones: </span>
+                          {rule.roomTypes.map(rtId => {
+                            const rt = roomTypes.find(r => r.id === rtId);
+                            return rt?.nombre;
+                          }).filter(Boolean).join(', ')}
+                        </div>
+
+                        {rule.descripcion && (
+                          <p className="text-sm text-muted-foreground italic">
+                            Descripción: {rule.descripcion}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(rule)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(rule.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
