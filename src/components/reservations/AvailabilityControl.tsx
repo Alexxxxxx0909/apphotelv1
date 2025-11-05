@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRooms } from '@/hooks/useRooms';
 import { useRoomTypes } from '@/hooks/useRoomTypes';
 import { useRoomFeatures } from '@/hooks/useRoomFeatures';
+import { toast } from 'sonner';
 
 const statusConfig = {
   disponible: { label: 'Disponible', color: 'bg-green-500', icon: CheckCircle },
@@ -36,7 +37,7 @@ const statusConfig = {
 const AvailabilityControl: React.FC = () => {
   const { user } = useAuth();
   const hotelId = user?.hotel || '';
-  const { rooms, loading } = useRooms(hotelId);
+  const { rooms, loading, updateRoom } = useRooms(hotelId);
   const { roomTypes } = useRoomTypes(hotelId);
   const { features } = useRoomFeatures(hotelId);
   
@@ -45,6 +46,7 @@ const AvailabilityControl: React.FC = () => {
   const [filterFloor, setFilterFloor] = useState<string>('all');
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<string>('');
 
   const getRoomType = (roomTypeId: string) => {
     return roomTypes.find(rt => rt.id === roomTypeId);
@@ -60,7 +62,21 @@ const AvailabilityControl: React.FC = () => {
 
   const handleRoomClick = (room: any) => {
     setSelectedRoom(room);
+    setNewStatus(room.estado);
     setIsDetailsOpen(true);
+  };
+
+  const handleStatusChange = async () => {
+    if (!selectedRoom || !newStatus) return;
+    
+    try {
+      await updateRoom(selectedRoom.id, { estado: newStatus as any });
+      toast.success('Estado de habitación actualizado');
+      setIsDetailsOpen(false);
+    } catch (error) {
+      toast.error('Error al actualizar el estado');
+      console.error(error);
+    }
   };
 
   const getStatusStats = () => {
@@ -299,9 +315,9 @@ const AvailabilityControl: React.FC = () => {
                       <span className="text-muted-foreground">Piso:</span>
                       <span className="font-medium">{selectedRoom.piso || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
+                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Estado:</span>
-                      <Badge className={statusConfig[selectedRoom.estado as keyof typeof statusConfig]?.color}>
+                      <Badge className={`${statusConfig[selectedRoom.estado as keyof typeof statusConfig]?.color} text-white`}>
                         {statusConfig[selectedRoom.estado as keyof typeof statusConfig]?.label || selectedRoom.estado}
                       </Badge>
                     </div>
@@ -350,6 +366,30 @@ const AvailabilityControl: React.FC = () => {
                 <p className="text-sm text-muted-foreground">
                   {getRoomType(selectedRoom.tipo)?.descripcion || 'Sin descripción'}
                 </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Cambiar Estado</h4>
+                <div className="flex gap-2">
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Seleccionar estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disponible">Disponible</SelectItem>
+                      <SelectItem value="ocupada">Ocupada</SelectItem>
+                      <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                      <SelectItem value="limpieza">Limpieza</SelectItem>
+                      <SelectItem value="fuera_servicio">Fuera de Servicio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    onClick={handleStatusChange}
+                    disabled={newStatus === selectedRoom.estado}
+                  >
+                    Actualizar
+                  </Button>
+                </div>
               </div>
             </div>
           )}
