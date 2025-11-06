@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Search, 
   Filter, 
@@ -19,141 +22,88 @@ import {
   CreditCard,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  Users
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
-
-interface Reservation {
-  id: string;
-  reservationNumber: string;
-  guestName: string;
-  guestEmail: string;
-  guestPhone: string;
-  checkIn: Date;
-  checkOut: Date;
-  roomType: string;
-  roomNumber: string;
-  adults: number;
-  children: number;
-  plan: string;
-  pricePerNight: number;
-  totalAmount: number;
-  paymentMethod: string;
-  status: 'pendiente' | 'confirmada' | 'cancelada' | 'no-show' | 'en-curso' | 'finalizada';
-  createdAt: Date;
-  notes?: string;
-}
-
-const mockReservations: Reservation[] = [
-  {
-    id: '1',
-    reservationNumber: 'RES-2024-0001',
-    guestName: 'Juan Pérez García',
-    guestEmail: 'juan.perez@email.com',
-    guestPhone: '+34 666 123 456',
-    checkIn: new Date('2024-01-20'),
-    checkOut: new Date('2024-01-23'),
-    roomType: 'Doble',
-    roomNumber: '205',
-    adults: 2,
-    children: 0,
-    plan: 'Alojamiento + Desayuno',
-    pricePerNight: 120,
-    totalAmount: 360,
-    paymentMethod: 'Tarjeta de Crédito',
-    status: 'confirmada',
-    createdAt: new Date('2024-01-10'),
-    notes: 'Cliente VIP - Habitación con vista al mar'
-  },
-  {
-    id: '2',
-    reservationNumber: 'RES-2024-0002',
-    guestName: 'María González López',
-    guestEmail: 'maria.gonzalez@email.com',
-    guestPhone: '+34 677 987 654',
-    checkIn: new Date('2024-01-25'),
-    checkOut: new Date('2024-01-28'),
-    roomType: 'Suite',
-    roomNumber: '301',
-    adults: 2,
-    children: 1,
-    plan: 'All Inclusive',
-    pricePerNight: 250,
-    totalAmount: 750,
-    paymentMethod: 'Transferencia',
-    status: 'pendiente',
-    createdAt: new Date('2024-01-15'),
-  },
-  {
-    id: '3',
-    reservationNumber: 'RES-2024-0003',
-    guestName: 'Carlos Rodríguez Martín',
-    guestEmail: 'carlos.rodriguez@email.com',
-    guestPhone: '+34 688 555 123',
-    checkIn: new Date('2024-01-18'),
-    checkOut: new Date('2024-01-20'),
-    roomType: 'Individual',
-    roomNumber: '102',
-    adults: 1,
-    children: 0,
-    plan: 'Solo Alojamiento',
-    pricePerNight: 80,
-    totalAmount: 160,
-    paymentMethod: 'Efectivo',
-    status: 'en-curso',
-    createdAt: new Date('2024-01-12'),
-  }
-];
+import { toast } from 'sonner';
+import { useReservations } from '@/hooks/useReservations';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusConfig = {
-  pendiente: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  confirmada: { label: 'Confirmada', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-  cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-800', icon: XCircle },
-  'no-show': { label: 'No Show', color: 'bg-gray-100 text-gray-800', icon: XCircle },
-  'en-curso': { label: 'En Curso', color: 'bg-blue-100 text-blue-800', icon: CheckCircle },
-  finalizada: { label: 'Finalizada', color: 'bg-purple-100 text-purple-800', icon: CheckCircle }
+  pendiente: { label: 'Pendiente', color: 'bg-yellow-500 text-white', icon: Clock },
+  confirmada: { label: 'Confirmada', color: 'bg-green-500 text-white', icon: CheckCircle },
+  cancelada: { label: 'Cancelada', color: 'bg-red-500 text-white', icon: XCircle },
+  completada: { label: 'Completada', color: 'bg-purple-500 text-white', icon: CheckCircle }
 };
 
 const ReservationManagement: React.FC = () => {
-  const { toast } = useToast();
-  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
+  const { user } = useAuth();
+  const hotelId = user?.hotel || '';
+  const { reservations, loading, updateReservation, deleteReservation } = useReservations(hotelId);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editData, setEditData] = useState<any>({});
 
   const filteredReservations = reservations.filter(reservation => {
     const matchesSearch = reservation.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reservation.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         reservation.guestEmail.toLowerCase().includes(searchTerm.toLowerCase());
+                         (reservation.guestEmail?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     
     const matchesStatus = statusFilter === 'all' || reservation.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
 
-  const handleStatusChange = (reservationId: string, newStatus: string) => {
-    setReservations(prev => prev.map(res => 
-      res.id === reservationId ? { ...res, status: newStatus as any } : res
-    ));
+  const handleStatusChange = async (reservationId: string, newStatus: string) => {
+    try {
+      await updateReservation(reservationId, { status: newStatus as any });
+      toast.success('Estado actualizado correctamente');
+    } catch (error) {
+      toast.error('Error al actualizar el estado');
+    }
+  };
+
+  const handleDeleteReservation = async (reservationId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta reserva?')) return;
     
-    toast({
-      title: "Estado Actualizado",
-      description: "El estado de la reserva ha sido actualizado",
-    });
+    try {
+      await deleteReservation(reservationId);
+      toast.success('Reserva eliminada correctamente');
+    } catch (error) {
+      toast.error('Error al eliminar la reserva');
+    }
   };
 
-  const handleCancelReservation = (reservationId: string) => {
-    handleStatusChange(reservationId, 'cancelada');
+  const handleEdit = (reservation: any) => {
+    setEditData({
+      guestName: reservation.guestName,
+      guestEmail: reservation.guestEmail || '',
+      guestPhone: reservation.guestPhone || '',
+      adults: reservation.adults,
+      children: reservation.children,
+      specialRequests: reservation.specialRequests || '',
+      status: reservation.status
+    });
+    setSelectedReservation(reservation);
+    setIsEditOpen(true);
   };
 
-  const handleDeleteReservation = (reservationId: string) => {
-    setReservations(prev => prev.filter(res => res.id !== reservationId));
-    toast({
-      title: "Reserva Eliminada",
-      description: "La reserva ha sido eliminada del sistema",
-    });
+  const handleSaveEdit = async () => {
+    if (!selectedReservation) return;
+    
+    try {
+      await updateReservation(selectedReservation.id, editData);
+      toast.success('Reserva actualizada correctamente');
+      setIsEditOpen(false);
+    } catch (error) {
+      toast.error('Error al actualizar la reserva');
+    }
   };
 
   const getStatusStats = () => {
@@ -161,13 +111,20 @@ const ReservationManagement: React.FC = () => {
       total: reservations.length,
       pendiente: reservations.filter(r => r.status === 'pendiente').length,
       confirmada: reservations.filter(r => r.status === 'confirmada').length,
-      cancelada: reservations.filter(r => r.status === 'cancelada').length,
-      'en-curso': reservations.filter(r => r.status === 'en-curso').length,
-      finalizada: reservations.filter(r => r.status === 'finalizada').length
+      completada: reservations.filter(r => r.status === 'completada').length,
+      cancelada: reservations.filter(r => r.status === 'cancelada').length
     };
   };
 
   const stats = getStatusStats();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Cargando reservas...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -176,7 +133,7 @@ const ReservationManagement: React.FC = () => {
       className="space-y-6"
     >
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-primary">{stats.total}</div>
@@ -197,20 +154,14 @@ const ReservationManagement: React.FC = () => {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats['en-curso']}</div>
-            <div className="text-sm text-muted-foreground">En Curso</div>
+            <div className="text-2xl font-bold text-purple-600">{stats.completada}</div>
+            <div className="text-sm text-muted-foreground">Completadas</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-red-600">{stats.cancelada}</div>
             <div className="text-sm text-muted-foreground">Canceladas</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">{stats.finalizada}</div>
-            <div className="text-sm text-muted-foreground">Finalizadas</div>
           </CardContent>
         </Card>
       </div>
@@ -246,8 +197,7 @@ const ReservationManagement: React.FC = () => {
                   <SelectItem value="all">Todos los estados</SelectItem>
                   <SelectItem value="pendiente">Pendientes</SelectItem>
                   <SelectItem value="confirmada">Confirmadas</SelectItem>
-                  <SelectItem value="en-curso">En Curso</SelectItem>
-                  <SelectItem value="finalizada">Finalizadas</SelectItem>
+                  <SelectItem value="completada">Completadas</SelectItem>
                   <SelectItem value="cancelada">Canceladas</SelectItem>
                 </SelectContent>
               </Select>
@@ -259,8 +209,8 @@ const ReservationManagement: React.FC = () => {
       {/* Lista de Reservas */}
       <div className="space-y-4">
         {filteredReservations.map((reservation) => {
-          const statusInfo = statusConfig[reservation.status];
-          const StatusIcon = statusInfo.icon;
+          const statusInfo = statusConfig[reservation.status as keyof typeof statusConfig];
+          const StatusIcon = statusInfo?.icon || Clock;
           const nights = Math.ceil((reservation.checkOut.getTime() - reservation.checkIn.getTime()) / (1000 * 60 * 60 * 24));
           
           return (
@@ -274,9 +224,9 @@ const ReservationManagement: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
                         <h4 className="font-semibold text-lg">{reservation.reservationNumber}</h4>
-                        <Badge className={statusInfo.color}>
+                        <Badge className={statusInfo?.color || 'bg-gray-500 text-white'}>
                           <StatusIcon className="h-3 w-3 mr-1" />
-                          {statusInfo.label}
+                          {statusInfo?.label || reservation.status}
                         </Badge>
                       </div>
                       
@@ -286,21 +236,25 @@ const ReservationManagement: React.FC = () => {
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">{reservation.guestName}</span>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span>{reservation.guestEmail}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span>{reservation.guestPhone}</span>
-                          </div>
+                          {reservation.guestEmail && (
+                            <div className="flex items-center space-x-2">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>{reservation.guestEmail}</span>
+                            </div>
+                          )}
+                          {reservation.guestPhone && (
+                            <div className="flex items-center space-x-2">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <span>{reservation.guestPhone}</span>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="space-y-2">
                           <div className="flex items-center space-x-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span>
-                              {format(reservation.checkIn, "dd/MM/yyyy")} - {format(reservation.checkOut, "dd/MM/yyyy")}
+                              {format(reservation.checkIn, "dd/MM/yyyy", { locale: es })} - {format(reservation.checkOut, "dd/MM/yyyy", { locale: es })}
                             </span>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -308,7 +262,7 @@ const ReservationManagement: React.FC = () => {
                             <span>{reservation.roomType} - Hab. {reservation.roomNumber}</span>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
+                            <Users className="h-4 w-4 text-muted-foreground" />
                             <span>{reservation.adults} adultos{reservation.children > 0 && `, ${reservation.children} niños`}</span>
                           </div>
                         </div>
@@ -319,18 +273,18 @@ const ReservationManagement: React.FC = () => {
                             <span>{reservation.paymentMethod}</span>
                           </div>
                           <div>
-                            <span className="font-medium">Plan:</span> {reservation.plan}
+                            <span className="font-medium">Plan:</span> {reservation.plan || 'Sin plan'}
                           </div>
                           <div>
-                            <span className="font-medium">Total:</span> ${reservation.totalAmount} ({nights} noches)
+                            <span className="font-medium">Total:</span> ${reservation.totalPrice} ({nights} {nights === 1 ? 'noche' : 'noches'})
                           </div>
                         </div>
                       </div>
                       
-                      {reservation.notes && (
+                      {reservation.specialRequests && (
                         <div className="mt-3 p-3 bg-muted rounded-lg">
                           <div className="text-sm">
-                            <strong>Notas:</strong> {reservation.notes}
+                            <strong>Notas:</strong> {reservation.specialRequests}
                           </div>
                         </div>
                       )}
@@ -340,7 +294,10 @@ const ReservationManagement: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedReservation(reservation)}
+                        onClick={() => {
+                          setSelectedReservation(reservation);
+                          setIsViewOpen(true);
+                        }}
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         Ver
@@ -348,13 +305,13 @@ const ReservationManagement: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {/* Implementar edición */}}
+                        onClick={() => handleEdit(reservation)}
                       >
                         <Edit className="h-4 w-4 mr-1" />
                         Editar
                       </Button>
                       
-                      {reservation.status !== 'cancelada' && reservation.status !== 'finalizada' && (
+                      {reservation.status !== 'cancelada' && reservation.status !== 'completada' && (
                         <div className="space-y-1">
                           <Select
                             value={reservation.status}
@@ -366,10 +323,8 @@ const ReservationManagement: React.FC = () => {
                             <SelectContent>
                               <SelectItem value="pendiente">Pendiente</SelectItem>
                               <SelectItem value="confirmada">Confirmada</SelectItem>
-                              <SelectItem value="en-curso">En Curso</SelectItem>
-                              <SelectItem value="finalizada">Finalizada</SelectItem>
+                              <SelectItem value="completada">Completada</SelectItem>
                               <SelectItem value="cancelada">Cancelada</SelectItem>
-                              <SelectItem value="no-show">No Show</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -379,7 +334,7 @@ const ReservationManagement: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeleteReservation(reservation.id)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Eliminar
@@ -407,6 +362,163 @@ const ReservationManagement: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* View Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalles de la Reserva</DialogTitle>
+          </DialogHeader>
+          {selectedReservation && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Número:</span>
+                  <p className="font-medium">{selectedReservation.reservationNumber}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Estado:</span>
+                  <Badge className={statusConfig[selectedReservation.status as keyof typeof statusConfig]?.color || 'bg-gray-500 text-white'}>
+                    {statusConfig[selectedReservation.status as keyof typeof statusConfig]?.label || selectedReservation.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Huésped:</span>
+                  <p className="font-medium">{selectedReservation.guestName}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Email:</span>
+                  <p className="font-medium">{selectedReservation.guestEmail || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Teléfono:</span>
+                  <p className="font-medium">{selectedReservation.guestPhone || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Habitación:</span>
+                  <p className="font-medium">{selectedReservation.roomType} - {selectedReservation.roomNumber}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Check-in:</span>
+                  <p className="font-medium">{format(selectedReservation.checkIn, 'dd/MM/yyyy', { locale: es })}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Check-out:</span>
+                  <p className="font-medium">{format(selectedReservation.checkOut, 'dd/MM/yyyy', { locale: es })}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Huéspedes:</span>
+                  <p className="font-medium">{selectedReservation.adults} adultos, {selectedReservation.children} niños</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Plan:</span>
+                  <p className="font-medium">{selectedReservation.plan || 'Sin plan'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Pago:</span>
+                  <p className="font-medium">{selectedReservation.paymentMethod}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Total:</span>
+                  <p className="font-bold text-lg">${selectedReservation.totalPrice}</p>
+                </div>
+              </div>
+              {selectedReservation.specialRequests && (
+                <div>
+                  <span className="text-muted-foreground">Requerimientos especiales:</span>
+                  <p className="mt-1 p-3 bg-muted rounded">{selectedReservation.specialRequests}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Reserva</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre del Huésped</Label>
+                <Input
+                  value={editData.guestName || ''}
+                  onChange={(e) => setEditData({ ...editData, guestName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={editData.guestEmail || ''}
+                  onChange={(e) => setEditData({ ...editData, guestEmail: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Teléfono</Label>
+                <Input
+                  value={editData.guestPhone || ''}
+                  onChange={(e) => setEditData({ ...editData, guestPhone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Adultos</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={editData.adults || 1}
+                  onChange={(e) => setEditData({ ...editData, adults: parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Niños</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editData.children || 0}
+                  onChange={(e) => setEditData({ ...editData, children: parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Select
+                  value={editData.status}
+                  onValueChange={(value) => setEditData({ ...editData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendiente">Pendiente</SelectItem>
+                    <SelectItem value="confirmada">Confirmada</SelectItem>
+                    <SelectItem value="completada">Completada</SelectItem>
+                    <SelectItem value="cancelada">Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Requerimientos Especiales</Label>
+              <Textarea
+                value={editData.specialRequests || ''}
+                onChange={(e) => setEditData({ ...editData, specialRequests: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit}>
+                Guardar Cambios
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };
