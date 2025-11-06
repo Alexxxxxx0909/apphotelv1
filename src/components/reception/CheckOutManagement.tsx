@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,111 +23,13 @@ import {
   Clock,
   CreditCard
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
-
-interface ActiveGuest {
-  id: string;
-  reservationNumber: string;
-  guestName: string;
-  roomNumber: string;
-  roomType: string;
-  checkIn: Date;
-  checkOut: Date;
-  adults: number;
-  children: number;
-  plan: string;
-  totalAmount: number;
-  consumptions: Consumption[];
-  paymentStatus: 'paid' | 'partial' | 'pending';
-}
-
-interface Consumption {
-  id: string;
-  service: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-  date: Date;
-  category: 'restaurant' | 'minibar' | 'spa' | 'laundry' | 'parking' | 'phone' | 'other';
-}
-
-const mockActiveGuests: ActiveGuest[] = [
-  {
-    id: '1',
-    reservationNumber: 'RES-2024-0001',
-    guestName: 'Juan Pérez García',
-    roomNumber: '205',
-    roomType: 'Doble',
-    checkIn: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    checkOut: new Date(),
-    adults: 2,
-    children: 0,
-    plan: 'Alojamiento + Desayuno',
-    totalAmount: 360,
-    paymentStatus: 'paid',
-    consumptions: [
-      {
-        id: 'c1',
-        service: 'Restaurante',
-        description: 'Cena del 18/01',
-        quantity: 2,
-        unitPrice: 35,
-        total: 70,
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        category: 'restaurant'
-      },
-      {
-        id: 'c2',
-        service: 'Minibar',
-        description: 'Bebidas y snacks',
-        quantity: 1,
-        unitPrice: 25,
-        total: 25,
-        date: new Date(),
-        category: 'minibar'
-      },
-      {
-        id: 'c3',
-        service: 'Spa',
-        description: 'Masaje relajante',
-        quantity: 1,
-        unitPrice: 80,
-        total: 80,
-        date: new Date(),
-        category: 'spa'
-      }
-    ]
-  },
-  {
-    id: '2',
-    reservationNumber: 'RES-2024-0003',
-    guestName: 'Carlos Rodríguez Martín',
-    roomNumber: '102',
-    roomType: 'Individual',
-    checkIn: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    checkOut: new Date(),
-    adults: 1,
-    children: 0,
-    plan: 'Solo Alojamiento',
-    totalAmount: 160,
-    paymentStatus: 'pending',
-    consumptions: [
-      {
-        id: 'c4',
-        service: 'Desayuno',
-        description: 'Desayuno continental',
-        quantity: 2,
-        unitPrice: 15,
-        total: 30,
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        category: 'restaurant'
-      }
-    ]
-  }
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { useReservations } from '@/hooks/useReservations';
+import { useRooms } from '@/hooks/useRooms';
+import { useConsumptions } from '@/hooks/useConsumptions';
+import { toast } from 'sonner';
 
 const categoryIcons = {
   restaurant: Coffee,
@@ -140,10 +42,14 @@ const categoryIcons = {
 };
 
 const CheckOutManagement: React.FC = () => {
-  const { toast } = useToast();
-  const [activeGuests, setActiveGuests] = useState<ActiveGuest[]>(mockActiveGuests);
+  const { user } = useAuth();
+  const hotelId = user?.hotel;
+  const { reservations, updateReservation } = useReservations(hotelId);
+  const { rooms, updateRoom } = useRooms(hotelId);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGuest, setSelectedGuest] = useState<ActiveGuest | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [selectedConsumptions, setSelectedConsumptions] = useState<any[]>([]);
+  const { consumptions } = useConsumptions(selectedReservation?.id);
   const [checkOutForm, setCheckOutForm] = useState({
     actualCheckOutTime: '',
     roomCondition: '',
@@ -151,37 +57,69 @@ const CheckOutManagement: React.FC = () => {
     paymentMethod: 'cash'
   });
 
-  const filteredGuests = activeGuests.filter(guest =>
-    guest.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    guest.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    guest.roomNumber.includes(searchTerm)
+  // Filtrar reservas completadas (en curso) con check-out para hoy
+  const activeGuests = useMemo(() => {
+    return reservations.filter(reservation => 
+      reservation.status === 'completada' && 
+      isToday(reservation.checkOut)
+    );
+  }, [reservations]);
+
+  // Actualizar consumos cuando cambia la reserva seleccionada
+  React.useEffect(() => {
+    if (selectedReservation) {
+      setSelectedConsumptions(consumptions);
+    }
+  }, [selectedReservation, consumptions]);
+
+  const filteredGuests = activeGuests.filter(reservation =>
+    reservation.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    reservation.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    reservation.roomNumber.includes(searchTerm)
   );
 
-  const calculateTotalConsumptions = (consumptions: Consumption[]) => {
+  const calculateTotalConsumptions = (consumptions: any[]) => {
     return consumptions.reduce((total, consumption) => total + consumption.total, 0);
   };
 
-  const calculateFinalTotal = (guest: ActiveGuest) => {
-    return guest.totalAmount + calculateTotalConsumptions(guest.consumptions);
+  const calculateFinalTotal = (reservation: any, consumptions: any[]) => {
+    return reservation.totalPrice + calculateTotalConsumptions(consumptions);
   };
 
-  const handleCheckOut = async (guestId: string) => {
-    const guest = activeGuests.find(g => g.id === guestId);
-    if (!guest) return;
+  const handleCheckOut = async (reservationId: string) => {
+    try {
+      const reservation = reservations.find(r => r.id === reservationId);
+      if (!reservation) return;
 
-    // Simular proceso de check-out
-    setActiveGuests(prev => prev.filter(g => g.id !== guestId));
-    setSelectedGuest(null);
-    
-    toast({
-      title: "Check-out Completado",
-      description: `${guest.guestName} ha completado su estancia. Factura generada.`,
-    });
-  };
+      // Actualizar estado de reserva a 'cancelada' (reutilizando estado)
+      await updateReservation(reservationId, {
+        status: 'cancelada',
+        ...checkOutForm
+      });
 
-  const isCheckOutToday = (checkOutDate: Date) => {
-    const today = new Date();
-    return checkOutDate.toDateString() === today.toDateString();
+      // Actualizar estado de habitación a 'limpieza'
+      const room = rooms.find(r => r.id === reservation.roomId);
+      if (room) {
+        await updateRoom(room.id, {
+          estado: 'limpieza'
+        });
+      }
+
+      setSelectedReservation(null);
+      setCheckOutForm({
+        actualCheckOutTime: '',
+        roomCondition: '',
+        finalNotes: '',
+        paymentMethod: 'cash'
+      });
+      
+      toast.success('Check-out completado', {
+        description: `${reservation.guestName} ha completado su estancia. Factura generada.`
+      });
+    } catch (error) {
+      console.error('Error en check-out:', error);
+      toast.error('Error al completar check-out');
+    }
   };
 
   return (
@@ -215,36 +153,31 @@ const CheckOutManagement: React.FC = () => {
         {/* Lista de huéspedes activos */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Huéspedes Activos ({filteredGuests.length})</h3>
-          {filteredGuests.map((guest) => {
-            const totalConsumptions = calculateTotalConsumptions(guest.consumptions);
-            const finalTotal = calculateFinalTotal(guest);
+          {filteredGuests.map((reservation) => {
+            const totalConsumptions = 0; // Se calculará cuando se seleccione
+            const finalTotal = reservation.totalPrice + totalConsumptions;
             
             return (
               <motion.div
-                key={guest.id}
+                key={reservation.id}
                 whileHover={{ scale: 1.02 }}
               >
                 <Card 
                   className={`cursor-pointer transition-all duration-200 ${
-                    selectedGuest?.id === guest.id ? 'ring-2 ring-primary' : ''
+                    selectedReservation?.id === reservation.id ? 'ring-2 ring-primary' : ''
                   }`}
-                  onClick={() => setSelectedGuest(guest)}
+                  onClick={() => setSelectedReservation(reservation)}
                 >
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h4 className="font-semibold">{guest.guestName}</h4>
-                        <p className="text-sm text-muted-foreground">{guest.reservationNumber}</p>
+                        <h4 className="font-semibold">{reservation.guestName}</h4>
+                        <p className="text-sm text-muted-foreground">{reservation.reservationNumber}</p>
                       </div>
                       <div className="flex space-x-2">
-                        {isCheckOutToday(guest.checkOut) && (
-                          <Badge variant="default">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            Salida Hoy
-                          </Badge>
-                        )}
-                        <Badge variant={guest.paymentStatus === 'paid' ? 'default' : 'destructive'}>
-                          {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
+                        <Badge variant="default">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Salida Hoy
                         </Badge>
                       </div>
                     </div>
@@ -252,11 +185,11 @@ const CheckOutManagement: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                       <div className="flex items-center space-x-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{guest.roomType} - {guest.roomNumber}</span>
+                        <span>{reservation.roomType} - {reservation.roomNumber}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{format(guest.checkOut, "dd/MM/yyyy")}</span>
+                        <span>{format(reservation.checkOut, "dd/MM/yyyy")}</span>
                       </div>
                     </div>
 
@@ -265,11 +198,7 @@ const CheckOutManagement: React.FC = () => {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span>Alojamiento:</span>
-                        <span>${guest.totalAmount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Consumos extras:</span>
-                        <span>${totalConsumptions}</span>
+                        <span>${reservation.totalPrice}</span>
                       </div>
                       <div className="flex justify-between font-semibold text-base">
                         <span>Total final:</span>
@@ -285,12 +214,12 @@ const CheckOutManagement: React.FC = () => {
 
         {/* Detalle y check-out */}
         <div>
-          {selectedGuest ? (
+          {selectedReservation ? (
             <Card>
               <CardHeader>
                 <CardTitle>Procesar Check-out</CardTitle>
                 <CardDescription>
-                  {selectedGuest.guestName} - Habitación {selectedGuest.roomNumber}
+                  {selectedReservation.guestName} - Habitación {selectedReservation.roomNumber}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -299,11 +228,11 @@ const CheckOutManagement: React.FC = () => {
                   <h4 className="font-medium mb-3">Desglose de Consumos</h4>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     <div className="flex justify-between p-2 bg-muted rounded">
-                      <span>Alojamiento ({selectedGuest.plan})</span>
-                      <span>${selectedGuest.totalAmount}</span>
+                      <span>Alojamiento ({selectedReservation.plan})</span>
+                      <span>${selectedReservation.totalPrice}</span>
                     </div>
                     
-                    {selectedGuest.consumptions.map((consumption) => {
+                    {selectedConsumptions.map((consumption) => {
                       const CategoryIcon = categoryIcons[consumption.category];
                       return (
                         <div key={consumption.id} className="flex justify-between items-center p-2 border rounded">
@@ -331,7 +260,7 @@ const CheckOutManagement: React.FC = () => {
                   
                   <div className="flex justify-between text-lg font-semibold">
                     <span>Total Final:</span>
-                    <span>${calculateFinalTotal(selectedGuest)}</span>
+                    <span>${calculateFinalTotal(selectedReservation, selectedConsumptions)}</span>
                   </div>
                 </div>
 
@@ -408,14 +337,14 @@ const CheckOutManagement: React.FC = () => {
                   <div className="flex space-x-2">
                     <Button 
                       className="flex-1"
-                      onClick={() => handleCheckOut(selectedGuest.id)}
+                      onClick={() => handleCheckOut(selectedReservation.id)}
                     >
                       <Receipt className="h-4 w-4 mr-2" />
                       Completar Check-out
                     </Button>
                     <Button 
                       variant="outline"
-                      onClick={() => setSelectedGuest(null)}
+                      onClick={() => setSelectedReservation(null)}
                     >
                       Cancelar
                     </Button>

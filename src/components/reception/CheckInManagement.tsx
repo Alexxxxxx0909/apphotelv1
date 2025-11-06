@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,113 +20,91 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-
-interface PendingReservation {
-  id: string;
-  reservationNumber: string;
-  guestName: string;
-  guestEmail: string;
-  guestPhone: string;
-  checkIn: Date;
-  checkOut: Date;
-  roomType: string;
-  roomNumber: string;
-  adults: number;
-  children: number;
-  plan: string;
-  totalAmount: number;
-  status: 'pendiente' | 'confirmada';
-  arrivalTime?: string;
-  specialRequests?: string;
-}
-
-const mockPendingReservations: PendingReservation[] = [
-  {
-    id: '1',
-    reservationNumber: 'RES-2024-0001',
-    guestName: 'Juan Pérez García',
-    guestEmail: 'juan.perez@email.com',
-    guestPhone: '+34 666 123 456',
-    checkIn: new Date(),
-    checkOut: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    roomType: 'Doble',
-    roomNumber: '205',
-    adults: 2,
-    children: 0,
-    plan: 'Alojamiento + Desayuno',
-    totalAmount: 360,
-    status: 'confirmada',
-    arrivalTime: '15:30',
-    specialRequests: 'Habitación con vista al mar'
-  },
-  {
-    id: '2',
-    reservationNumber: 'RES-2024-0002',
-    guestName: 'María González López',
-    guestEmail: 'maria.gonzalez@email.com',
-    guestPhone: '+34 677 987 654',
-    checkIn: new Date(),
-    checkOut: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-    roomType: 'Suite',
-    roomNumber: '301',
-    adults: 2,
-    children: 1,
-    plan: 'All Inclusive',
-    totalAmount: 1000,
-    status: 'confirmada',
-    arrivalTime: '16:00'
-  }
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { useReservations } from '@/hooks/useReservations';
+import { useRooms } from '@/hooks/useRooms';
+import { toast } from 'sonner';
 
 const CheckInManagement: React.FC = () => {
-  const { toast } = useToast();
-  const [pendingReservations, setPendingReservations] = useState<PendingReservation[]>(mockPendingReservations);
+  const { user } = useAuth();
+  const hotelId = user?.hotel;
+  const { reservations, updateReservation } = useReservations(hotelId);
+  const { rooms, updateRoom } = useRooms(hotelId);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReservation, setSelectedReservation] = useState<PendingReservation | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<any>(null);
   const [checkInForm, setCheckInForm] = useState({
     actualArrivalTime: '',
     guestDocuments: '',
     paymentStatus: '',
     roomCondition: 'ready',
-    specialNotes: '',
-    additionalGuests: []
+    specialNotes: ''
   });
 
-  const filteredReservations = pendingReservations.filter(reservation =>
+  // Filtrar reservas confirmadas con check-in para hoy
+  const todayReservations = useMemo(() => {
+    return reservations.filter(reservation => 
+      reservation.status === 'confirmada' && 
+      isToday(reservation.checkIn)
+    );
+  }, [reservations]);
+
+  const filteredReservations = todayReservations.filter(reservation =>
     reservation.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     reservation.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reservation.guestEmail.toLowerCase().includes(searchTerm.toLowerCase())
+    (reservation.guestEmail && reservation.guestEmail.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const handleCheckIn = async (reservationId: string) => {
-    const reservation = pendingReservations.find(r => r.id === reservationId);
-    if (!reservation) return;
+    try {
+      const reservation = reservations.find(r => r.id === reservationId);
+      if (!reservation) return;
 
-    // Simular proceso de check-in
-    setPendingReservations(prev => prev.filter(r => r.id !== reservationId));
-    setSelectedReservation(null);
-    
-    toast({
-      title: "Check-in Completado",
-      description: `${reservation.guestName} se ha registrado exitosamente en la habitación ${reservation.roomNumber}`,
-    });
+      // Actualizar estado de reserva a 'en curso'
+      await updateReservation(reservationId, {
+        status: 'completada',
+        ...checkInForm
+      });
+
+      // Actualizar estado de habitación a 'ocupada'
+      const room = rooms.find(r => r.id === reservation.roomId);
+      if (room) {
+        await updateRoom(room.id, {
+          estado: 'ocupada'
+        });
+      }
+
+      setSelectedReservation(null);
+      setCheckInForm({
+        actualArrivalTime: '',
+        guestDocuments: '',
+        paymentStatus: '',
+        roomCondition: 'ready',
+        specialNotes: ''
+      });
+      
+      toast.success('Check-in completado', {
+        description: `${reservation.guestName} se ha registrado exitosamente en la habitación ${reservation.roomNumber}`
+      });
+    } catch (error) {
+      console.error('Error en check-in:', error);
+      toast.error('Error al completar check-in');
+    }
   };
 
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isLate = (arrivalTime: string) => {
+  const isLate = (arrivalTime: string | undefined) => {
     if (!arrivalTime) return false;
     const now = new Date();
     const [hours, minutes] = arrivalTime.split(':').map(Number);
     const arrivalDate = new Date();
     arrivalDate.setHours(hours, minutes, 0, 0);
     return now > arrivalDate;
+  };
+
+  const getArrivalTime = (checkIn: Date) => {
+    return format(checkIn, 'HH:mm');
   };
 
   return (
@@ -176,21 +154,13 @@ const CheckInManagement: React.FC = () => {
                     <div>
                       <h4 className="font-semibold">{reservation.guestName}</h4>
                       <p className="text-sm text-muted-foreground">{reservation.reservationNumber}</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      {isToday(reservation.checkIn) && (
-                        <Badge variant="default">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          Hoy
-                        </Badge>
-                      )}
-                      {reservation.arrivalTime && isLate(reservation.arrivalTime) && (
-                        <Badge variant="destructive">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Retraso
-                        </Badge>
-                      )}
-                    </div>
+                     </div>
+                     <div className="flex space-x-2">
+                       <Badge variant="default">
+                         <Calendar className="h-3 w-3 mr-1" />
+                         Hoy
+                       </Badge>
+                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-sm">
@@ -198,18 +168,18 @@ const CheckInManagement: React.FC = () => {
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{reservation.roomType} - {reservation.roomNumber}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{reservation.arrivalTime || 'No especificada'}</span>
-                    </div>
+                     <div className="flex items-center space-x-2">
+                       <Clock className="h-4 w-4 text-muted-foreground" />
+                       <span>{getArrivalTime(reservation.checkIn)}</span>
+                     </div>
                     <div className="flex items-center space-x-2">
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span>{reservation.adults} adultos{reservation.children > 0 && `, ${reservation.children} niños`}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      <span>${reservation.totalAmount}</span>
-                    </div>
+                     <div className="flex items-center space-x-2">
+                       <CreditCard className="h-4 w-4 text-muted-foreground" />
+                       <span>${reservation.totalPrice}</span>
+                     </div>
                   </div>
                   
                   {reservation.specialRequests && (
