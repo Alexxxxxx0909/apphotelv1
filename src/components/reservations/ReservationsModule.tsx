@@ -5,14 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { 
   CalendarPlus, 
   Calendar, 
-  Lock, 
   TrendingUp, 
   Edit,
   ChevronRight
 } from 'lucide-react';
 import RegisterReservation from './RegisterReservation';
 import AvailabilityControl from './AvailabilityControl';
-import RoomBlocking from './RoomBlocking';
 import DynamicPricing from './DynamicPricing';
 import ReservationManagement from './ReservationManagement';
 
@@ -40,13 +38,6 @@ const subModules: SubModule[] = [
     color: 'text-green-600'
   },
   {
-    id: 'blocking',
-    name: 'Bloqueo de Habitaciones',
-    description: 'Bloquear por mantenimiento o eventos',
-    icon: Lock,
-    color: 'text-red-600'
-  },
-  {
     id: 'pricing',
     name: 'Tarifas Dinámicas',
     description: 'Gestión de precios y promociones',
@@ -71,8 +62,6 @@ const ReservationsModule: React.FC = () => {
         return <RegisterReservation />;
       case 'availability':
         return <AvailabilityControl />;
-      case 'blocking':
-        return <RoomBlocking />;
       case 'pricing':
         return <DynamicPricing />;
       case 'management':

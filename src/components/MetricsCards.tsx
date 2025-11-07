@@ -13,35 +13,31 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-// Charts will be implemented in future iterations
-
-const occupancyData = [
-  { name: 'Lun', ocupacion: 85 },
-  { name: 'Mar', ocupacion: 92 },
-  { name: 'Mie', ocupacion: 78 },
-  { name: 'Jue', ocupacion: 88 },
-  { name: 'Vie', ocupacion: 95 },
-  { name: 'Sab', ocupacion: 100 },
-  { name: 'Dom', ocupacion: 87 },
-];
-
-const revenueData = [
-  { name: 'Ene', ingresos: 120000 },
-  { name: 'Feb', ingresos: 135000 },
-  { name: 'Mar', ingresos: 148000 },
-  { name: 'Abr', ingresos: 162000 },
-  { name: 'May', ingresos: 175000 },
-  { name: 'Jun', ingresos: 188000 },
-];
-
-const roomStatusData = [
-  { name: 'Ocupadas', value: 42, color: '#ef4444' },
-  { name: 'Disponibles', value: 28, color: '#22c55e' },
-  { name: 'Mantenimiento', value: 5, color: '#f59e0b' },
-  { name: 'Limpieza', value: 15, color: '#3b82f6' },
-];
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useAuth } from '@/contexts/AuthContext';
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 
 const MetricsCards: React.FC = () => {
+  const { user } = useAuth();
+  const { metrics, loading } = useDashboardMetrics(user?.hotel);
+
+  const roomStatusData = [
+    { name: 'Ocupadas', value: metrics.estadoHabitaciones.ocupadas, color: '#ef4444' },
+    { name: 'Disponibles', value: metrics.estadoHabitaciones.disponibles, color: '#22c55e' },
+    { name: 'Mantenimiento', value: metrics.estadoHabitaciones.mantenimiento, color: '#f59e0b' },
+    { name: 'Limpieza', value: metrics.estadoHabitaciones.limpieza, color: '#3b82f6' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando métricas...</p>
+        </div>
+      </div>
+    );
+  }
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -73,11 +69,11 @@ const MetricsCards: React.FC = () => {
               <Bed className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">87%</div>
+              <div className="text-2xl font-bold">{metrics.ocupacionActual}%</div>
               <p className="text-xs text-muted-foreground">
                 <span className="inline-flex items-center text-success">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
-                  +5.2%
+                  +{metrics.tendencias.ocupacion}%
                 </span>
                 {" "}vs. semana anterior
               </p>
@@ -92,11 +88,11 @@ const MetricsCards: React.FC = () => {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$24,580</div>
+              <div className="text-2xl font-bold">${metrics.ingresosHoy.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="inline-flex items-center text-success">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
-                  +12.5%
+                  +{metrics.tendencias.ingresos}%
                 </span>
                 {" "}vs. ayer
               </p>
@@ -111,11 +107,11 @@ const MetricsCards: React.FC = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">23</div>
+              <div className="text-2xl font-bold">{metrics.checkInsHoy}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="inline-flex items-center text-warning">
                   <ArrowDownRight className="h-3 w-3 mr-1" />
-                  -2.1%
+                  {metrics.tendencias.checkIns}%
                 </span>
                 {" "}vs. promedio
               </p>
@@ -130,11 +126,11 @@ const MetricsCards: React.FC = () => {
               <Star className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">4.8</div>
+              <div className="text-2xl font-bold">{metrics.satisfaccion}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="inline-flex items-center text-success">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
-                  +0.3
+                  +{metrics.tendencias.satisfaccion}
                 </span>
                 {" "}este mes
               </p>
@@ -158,12 +154,17 @@ const MetricsCards: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 bg-gradient-subtle rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 text-primary mx-auto mb-4" />
-                  <p className="text-muted-foreground">Gráfico de ocupación</p>
-                  <p className="text-sm text-muted-foreground">Próximamente disponible</p>
-                </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={metrics.ocupacionSemanal}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="ocupacion" stroke="hsl(var(--primary))" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
@@ -182,21 +183,26 @@ const MetricsCards: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 bg-gradient-subtle rounded-lg p-6">
-                <div className="grid grid-cols-2 gap-4 h-full">
-                  {roomStatusData.map((item, index) => (
-                    <div key={index} className="flex items-center space-x-3">
-                      <div 
-                        className="w-4 h-4 rounded-full" 
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <div>
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-2xl font-bold">{item.value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={roomStatusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {roomStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
@@ -217,20 +223,17 @@ const MetricsCards: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80 bg-gradient-subtle rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <TrendingUp className="h-16 w-16 text-accent mx-auto mb-4" />
-                <p className="text-lg font-medium text-foreground mb-2">Tendencia Ascendente</p>
-                <p className="text-muted-foreground">+15.2% vs. período anterior</p>
-                <div className="mt-6 grid grid-cols-3 gap-4 text-center">
-                  {revenueData.slice(-3).map((item, index) => (
-                    <div key={index}>
-                      <p className="text-xs text-muted-foreground">{item.name}</p>
-                      <p className="text-lg font-bold">${(item.ingresos / 1000).toFixed(0)}K</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={metrics.ingresosMensuales}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
+                  <Legend />
+                  <Bar dataKey="ingresos" fill="hsl(var(--accent))" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

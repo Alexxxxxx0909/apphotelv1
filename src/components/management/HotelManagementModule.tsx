@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,9 @@ import { useRoomTypes } from '@/hooks/useRoomTypes';
 import { useRoomFeatures } from '@/hooks/useRoomFeatures';
 import { useRooms } from '@/hooks/useRooms';
 import { useMealPlans } from '@/hooks/useMealPlans';
+import { useHotels } from '@/hooks/useHotels';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import { 
   Hotel, 
   Building, 
@@ -45,20 +48,40 @@ const HotelManagementModule: React.FC = () => {
   const { user } = useAuth();
   
   const hotelId = user?.hotel;
+  const { hotels, loading: loadingHotels } = useHotels();
   const { roomTypes, loading: loadingTypes, addRoomType, updateRoomType, deleteRoomType } = useRoomTypes(hotelId);
   const { features, loading: loadingFeatures, addFeature, updateFeature, deleteFeature } = useRoomFeatures(hotelId);
   const { rooms, loading: loadingRooms, addRoom, updateRoom, deleteRoom } = useRooms(hotelId);
   const { plans, loading: loadingPlans, addMealPlan, updateMealPlan, deleteMealPlan } = useMealPlans(hotelId);
   
+  const currentHotel = hotels.find(h => h.id === hotelId);
+  
   const [hotelInfo, setHotelInfo] = useState({
-    nombre: 'Hotel Bloom Suites',
-    direccion: 'Calle 123 #45-67, Centro',
-    telefono: '+57 (1) 234-5678',
-    email: 'info@bloomsuites.com',
+    nombre: '',
+    direccion: '',
+    telefono: '',
+    email: '',
+    ciudad: '',
+    pais: '',
     categoria: '4',
-    totalHabitaciones: 48,
-    pisos: 6
+    pisos: 0
   });
+
+  // Cargar información del hotel desde Firebase
+  useEffect(() => {
+    if (currentHotel) {
+      setHotelInfo({
+        nombre: currentHotel.nombre || '',
+        direccion: currentHotel.direccion || '',
+        telefono: currentHotel.telefono || '',
+        email: currentHotel.email || '',
+        ciudad: currentHotel.ciudad || '',
+        pais: currentHotel.pais || '',
+        categoria: '4',
+        pisos: 0
+      });
+    }
+  }, [currentHotel]);
 
   const [newRoom, setNewRoom] = useState({
     numero: '',
@@ -544,11 +567,38 @@ const HotelManagementModule: React.FC = () => {
     handleChangeRoomStatus(roomId, 'fuera_servicio');
   };
 
-  const handleUpdateHotelInfo = () => {
-    toast({
-      title: "Información actualizada",
-      description: "Los datos del hotel han sido actualizados correctamente.",
-    });
+  const handleUpdateHotelInfo = async () => {
+    if (!hotelId) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar el hotel.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const hotelRef = doc(db, 'hotels', hotelId);
+      await updateDoc(hotelRef, {
+        nombre: hotelInfo.nombre,
+        direccion: hotelInfo.direccion,
+        telefono: hotelInfo.telefono,
+        email: hotelInfo.email,
+        ciudad: hotelInfo.ciudad,
+        pais: hotelInfo.pais
+      });
+
+      toast({
+        title: "Información actualizada",
+        description: "Los datos del hotel han sido actualizados correctamente.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la información del hotel.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -583,6 +633,7 @@ const HotelManagementModule: React.FC = () => {
                       id="nombre"
                       value={hotelInfo.nombre}
                       onChange={(e) => setHotelInfo({...hotelInfo, nombre: e.target.value})}
+                      placeholder="Hotel Bloom Suites"
                     />
                   </div>
                   <div className="space-y-2">
@@ -607,6 +658,28 @@ const HotelManagementModule: React.FC = () => {
                       id="direccion"
                       value={hotelInfo.direccion}
                       onChange={(e) => setHotelInfo({...hotelInfo, direccion: e.target.value})}
+                      placeholder="Calle 123 #45-67, Centro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ciudad">Ciudad</Label>
+                    <Input
+                      id="ciudad"
+                      value={hotelInfo.ciudad}
+                      onChange={(e) => setHotelInfo({...hotelInfo, ciudad: e.target.value})}
+                      placeholder="Bogotá"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pais">País</Label>
+                    <Input
+                      id="pais"
+                      value={hotelInfo.pais}
+                      onChange={(e) => setHotelInfo({...hotelInfo, pais: e.target.value})}
+                      placeholder="Colombia"
                     />
                   </div>
                   <div className="space-y-2">
@@ -615,11 +688,9 @@ const HotelManagementModule: React.FC = () => {
                       id="telefono"
                       value={hotelInfo.telefono}
                       onChange={(e) => setHotelInfo({...hotelInfo, telefono: e.target.value})}
+                      placeholder="+57 (1) 234-5678"
                     />
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Corporativo</Label>
                     <Input
@@ -627,15 +698,20 @@ const HotelManagementModule: React.FC = () => {
                       type="email"
                       value={hotelInfo.email}
                       onChange={(e) => setHotelInfo({...hotelInfo, email: e.target.value})}
+                      placeholder="info@bloomsuites.com"
                     />
                   </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="pisos">Número de Pisos</Label>
                     <Input
                       id="pisos"
                       type="number"
-                      value={hotelInfo.pisos}
-                      onChange={(e) => setHotelInfo({...hotelInfo, pisos: parseInt(e.target.value)})}
+                      value={hotelInfo.pisos || ''}
+                      onChange={(e) => setHotelInfo({...hotelInfo, pisos: parseInt(e.target.value) || 0})}
+                      placeholder="6"
                     />
                   </div>
                   <div className="space-y-2">
@@ -643,9 +719,10 @@ const HotelManagementModule: React.FC = () => {
                     <Input
                       id="totalHabitaciones"
                       type="number"
-                      value={hotelInfo.totalHabitaciones}
-                      onChange={(e) => setHotelInfo({...hotelInfo, totalHabitaciones: parseInt(e.target.value)})}
+                      value={rooms.length}
+                      disabled
                     />
+                    <p className="text-xs text-muted-foreground">Calculado automáticamente desde el inventario</p>
                   </div>
                 </div>
                 
