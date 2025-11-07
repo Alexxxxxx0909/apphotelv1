@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,144 +10,56 @@ import {
   Users, 
   UserPlus, 
   Trash2, 
-  Edit, 
-  Eye,
   Search,
   User,
   Phone,
   Mail,
-  Calendar,
   MapPin
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface GroupMember {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  documentType: string;
-  documentNumber: string;
-  relationship: string;
-  age?: number;
-}
+import { useReservations } from '@/hooks/useReservations';
+import { useGroupMembers, GroupMember } from '@/hooks/useGroupMembers';
+import { useAuth } from '@/contexts/AuthContext';
+import { format, isToday } from 'date-fns';
 
 interface GuestGroup {
   id: string;
   reservationNumber: string;
   mainGuestName: string;
-  mainGuestEmail: string;
-  mainGuestPhone: string;
+  mainGuestEmail?: string;
+  mainGuestPhone?: string;
   roomNumber: string;
   roomType: string;
   checkIn: Date;
   checkOut: Date;
   members: GroupMember[];
-  groupType: 'family' | 'friends' | 'business' | 'event';
-  status: 'pending' | 'checked-in' | 'checked-out';
+  adults: number;
+  children: number;
+  status: string;
 }
 
-const mockGroups: GuestGroup[] = [
-  {
-    id: '1',
-    reservationNumber: 'RES-2024-0001',
-    mainGuestName: 'Juan Pérez García',
-    mainGuestEmail: 'juan.perez@email.com',
-    mainGuestPhone: '+34 666 123 456',
-    roomNumber: '205',
-    roomType: 'Suite Familiar',
-    checkIn: new Date(),
-    checkOut: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    groupType: 'family',
-    status: 'checked-in',
-    members: [
-      {
-        id: 'm1',
-        name: 'María Pérez López',
-        email: 'maria.perez@email.com',
-        phone: '+34 666 123 457',
-        documentType: 'DNI',
-        documentNumber: '12345678B',
-        relationship: 'Esposa',
-        age: 35
-      },
-      {
-        id: 'm2',
-        name: 'Pablo Pérez López',
-        documentType: 'DNI',
-        documentNumber: '12345678C',
-        relationship: 'Hijo',
-        age: 8
-      },
-      {
-        id: 'm3',
-        name: 'Ana Pérez López',
-        documentType: 'DNI',
-        documentNumber: '12345678D',
-        relationship: 'Hija',
-        age: 12
-      }
-    ]
-  },
-  {
-    id: '2',
-    reservationNumber: 'RES-2024-0005',
-    mainGuestName: 'Carlos Rodríguez Martín',
-    mainGuestEmail: 'carlos.rodriguez@empresa.com',
-    mainGuestPhone: '+34 677 888 999',
-    roomNumber: '301-302',
-    roomType: 'Habitaciones Conectadas',
-    checkIn: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-    checkOut: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-    groupType: 'business',
-    status: 'pending',
-    members: [
-      {
-        id: 'm4',
-        name: 'Elena Sánchez García',
-        email: 'elena.sanchez@empresa.com',
-        phone: '+34 677 888 998',
-        documentType: 'DNI',
-        documentNumber: '87654321A',
-        relationship: 'Colega',
-        age: 30
-      },
-      {
-        id: 'm5',
-        name: 'Miguel Torres Ruiz',
-        email: 'miguel.torres@empresa.com',
-        phone: '+34 677 888 997',
-        documentType: 'DNI',
-        documentNumber: '87654321B',
-        relationship: 'Colega',
-        age: 28
-      }
-    ]
-  }
-];
-
-const groupTypeLabels = {
-  family: 'Familia',
-  friends: 'Amigos',
-  business: 'Negocios',
-  event: 'Evento'
+const statusLabels: Record<string, string> = {
+  pendiente: 'Pendiente',
+  confirmada: 'Confirmada',
+  'en-curso': 'En Curso',
+  completada: 'Completada',
+  cancelada: 'Cancelada'
 };
 
-const statusLabels = {
-  pending: 'Pendiente',
-  'checked-in': 'Registrado',
-  'checked-out': 'Salida'
-};
-
-const statusColors = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  'checked-in': 'bg-green-100 text-green-800',
-  'checked-out': 'bg-gray-100 text-gray-800'
+const statusColors: Record<string, string> = {
+  pendiente: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
+  confirmada: 'bg-green-500/10 text-green-700 dark:text-green-400',
+  'en-curso': 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
+  completada: 'bg-purple-500/10 text-purple-700 dark:text-purple-400',
+  cancelada: 'bg-red-500/10 text-red-700 dark:text-red-400'
 };
 
 const GuestGroupManagement: React.FC = () => {
   const { toast } = useToast();
-  const [groups, setGroups] = useState<GuestGroup[]>(mockGroups);
+  const { user } = useAuth();
+  const { reservations, loading: loadingReservations } = useReservations(user?.hotel);
+  const { members, loading: loadingMembers, addMember, deleteMember, getMembersByReservation } = useGroupMembers(user?.hotel);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<GuestGroup | null>(null);
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -161,14 +73,37 @@ const GuestGroupManagement: React.FC = () => {
     age: undefined
   });
 
+  // Convertir reservas a grupos y filtrar por hoy
+  const groups = useMemo(() => {
+    return reservations
+      .filter(res => isToday(res.checkIn) || isToday(res.checkOut))
+      .map(res => ({
+        id: res.id,
+        reservationNumber: res.reservationNumber,
+        mainGuestName: res.guestName,
+        mainGuestEmail: res.guestEmail,
+        mainGuestPhone: res.guestPhone,
+        roomNumber: res.roomNumber,
+        roomType: res.roomType,
+        checkIn: res.checkIn,
+        checkOut: res.checkOut,
+        adults: res.adults,
+        children: res.children,
+        status: res.status,
+        members: getMembersByReservation(res.id)
+      }));
+  }, [reservations, members, getMembersByReservation]);
+
   const filteredGroups = groups.filter(group =>
     group.mainGuestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.roomNumber.includes(searchTerm)
   );
 
-  const handleAddMember = () => {
-    if (!selectedGroup || !newMember.name || !newMember.documentNumber) {
+  const loading = loadingReservations || loadingMembers;
+
+  const handleAddMember = async () => {
+    if (!selectedGroup || !newMember.name || !newMember.documentNumber || !user?.hotel) {
       toast({
         title: "Error",
         description: "Por favor completa los campos obligatorios",
@@ -177,60 +112,69 @@ const GuestGroupManagement: React.FC = () => {
       return;
     }
 
-    const memberToAdd: GroupMember = {
-      id: `m${Date.now()}`,
-      name: newMember.name!,
-      email: newMember.email,
-      phone: newMember.phone,
-      documentType: newMember.documentType!,
-      documentNumber: newMember.documentNumber!,
-      relationship: newMember.relationship!,
-      age: newMember.age
-    };
+    try {
+      await addMember({
+        reservationId: selectedGroup.id,
+        name: newMember.name!,
+        email: newMember.email,
+        phone: newMember.phone,
+        documentType: newMember.documentType!,
+        documentNumber: newMember.documentNumber!,
+        relationship: newMember.relationship!,
+        age: newMember.age,
+        hotelId: user.hotel
+      });
 
-    setGroups(prev => prev.map(group => 
-      group.id === selectedGroup.id 
-        ? { ...group, members: [...group.members, memberToAdd] }
-        : group
-    ));
+      setNewMember({
+        name: '',
+        email: '',
+        phone: '',
+        documentType: 'DNI',
+        documentNumber: '',
+        relationship: '',
+        age: undefined
+      });
+      setIsAddingMember(false);
 
-    setSelectedGroup(prev => prev ? { ...prev, members: [...prev.members, memberToAdd] } : null);
-    setNewMember({
-      name: '',
-      email: '',
-      phone: '',
-      documentType: 'DNI',
-      documentNumber: '',
-      relationship: '',
-      age: undefined
-    });
-    setIsAddingMember(false);
-
-    toast({
-      title: "Miembro Agregado",
-      description: `${memberToAdd.name} ha sido agregado al grupo`,
-    });
+      toast({
+        title: "Acompañante Agregado",
+        description: `${newMember.name} ha sido agregado al grupo`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el acompañante",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleRemoveMember = (memberId: string) => {
+  const handleRemoveMember = async (memberId: string) => {
     if (!selectedGroup) return;
 
-    setGroups(prev => prev.map(group => 
-      group.id === selectedGroup.id 
-        ? { ...group, members: group.members.filter(m => m.id !== memberId) }
-        : group
-    ));
-
-    setSelectedGroup(prev => prev ? 
-      { ...prev, members: prev.members.filter(m => m.id !== memberId) } 
-      : null
-    );
-
-    toast({
-      title: "Miembro Eliminado",
-      description: "El miembro ha sido eliminado del grupo",
-    });
+    try {
+      await deleteMember(memberId);
+      
+      toast({
+        title: "Acompañante Eliminado",
+        description: "El acompañante ha sido eliminado del grupo",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el acompañante",
+        variant: "destructive"
+      });
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -243,7 +187,7 @@ const GuestGroupManagement: React.FC = () => {
         <CardHeader>
           <CardTitle>Gestión de Grupos y Acompañantes</CardTitle>
           <CardDescription>
-            Administra grupos familiares, empresariales y de eventos
+            Administra grupos de huéspedes con llegadas programadas para hoy
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -262,64 +206,72 @@ const GuestGroupManagement: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Lista de grupos */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Grupos Registrados ({filteredGroups.length})</h3>
-          {filteredGroups.map((group) => (
-            <motion.div
-              key={group.id}
-              whileHover={{ scale: 1.02 }}
-            >
-              <Card 
-                className={`cursor-pointer transition-all duration-200 ${
-                  selectedGroup?.id === group.id ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => setSelectedGroup(group)}
+          <h3 className="text-lg font-semibold">Reservas de Hoy ({filteredGroups.length})</h3>
+          {filteredGroups.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-muted-foreground">
+                No hay reservas programadas para hoy
+              </CardContent>
+            </Card>
+          ) : (
+            filteredGroups.map((group) => (
+              <motion.div
+                key={group.id}
+                whileHover={{ scale: 1.02 }}
               >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-semibold">{group.mainGuestName}</h4>
-                      <p className="text-sm text-muted-foreground">{group.reservationNumber}</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Badge variant="outline">
-                        {groupTypeLabels[group.groupType]}
-                      </Badge>
+                <Card 
+                  className={`cursor-pointer transition-all duration-200 ${
+                    selectedGroup?.id === group.id ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => setSelectedGroup(group)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-semibold">{group.mainGuestName}</h4>
+                        <p className="text-sm text-muted-foreground">{group.reservationNumber}</p>
+                      </div>
                       <Badge className={statusColors[group.status]}>
                         {statusLabels[group.status]}
                       </Badge>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{group.roomType} - {group.roomNumber}</span>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{group.roomType} - {group.roomNumber}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>{group.adults + group.children} personas ({group.adults} adultos, {group.children} niños)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{group.members.length + 1} personas</span>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {group.mainGuestName.split(' ')[0]} (Principal)
-                    </Badge>
-                    {group.members.slice(0, 3).map((member) => (
-                      <Badge key={member.id} variant="secondary" className="text-xs">
-                        {member.name.split(' ')[0]}
-                      </Badge>
-                    ))}
-                    {group.members.length > 3 && (
+                    <div className="flex flex-wrap gap-1">
                       <Badge variant="secondary" className="text-xs">
-                        +{group.members.length - 3} más
+                        {group.mainGuestName.split(' ')[0]} (Principal)
                       </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                      {group.members.slice(0, 3).map((member) => (
+                        <Badge key={member.id} variant="secondary" className="text-xs">
+                          {member.name.split(' ')[0]}
+                        </Badge>
+                      ))}
+                      {group.members.length > 3 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{group.members.length - 3} más
+                        </Badge>
+                      )}
+                      {group.members.length === 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          Sin acompañantes registrados
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          )}
         </div>
 
         {/* Detalle del grupo */}
@@ -344,7 +296,7 @@ const GuestGroupManagement: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Huésped principal */}
+                 {/* Huésped principal */}
                 <div className="p-3 bg-primary/5 rounded-lg">
                   <div className="flex items-center space-x-2 mb-2">
                     <User className="h-4 w-4 text-primary" />
@@ -352,14 +304,18 @@ const GuestGroupManagement: React.FC = () => {
                   </div>
                   <div className="space-y-1 text-sm">
                     <div><strong>{selectedGroup.mainGuestName}</strong></div>
-                    <div className="flex items-center space-x-2">
-                      <Mail className="h-3 w-3" />
-                      <span>{selectedGroup.mainGuestEmail}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Phone className="h-3 w-3" />
-                      <span>{selectedGroup.mainGuestPhone}</span>
-                    </div>
+                    {selectedGroup.mainGuestEmail && (
+                      <div className="flex items-center space-x-2">
+                        <Mail className="h-3 w-3" />
+                        <span>{selectedGroup.mainGuestEmail}</span>
+                      </div>
+                    )}
+                    {selectedGroup.mainGuestPhone && (
+                      <div className="flex items-center space-x-2">
+                        <Phone className="h-3 w-3" />
+                        <span>{selectedGroup.mainGuestPhone}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
