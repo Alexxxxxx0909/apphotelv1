@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,86 +16,86 @@ import {
   TrendingDown,
   Edit,
   History,
-  Truck
+  Truck,
+  Settings
 } from 'lucide-react';
-
-interface SupplyItem {
-  id: string;
-  nombre: string;
-  categoria: string;
-  unidadMedida: string;
-  stockActual: number;
-  stockMinimo: number;
-  stockMaximo: number;
-  costoUnitario: number;
-  proveedor: string;
-  ubicacion: string;
-  fechaVencimiento?: Date;
-  estado: 'disponible' | 'agotado' | 'bajo_stock' | 'vencido';
-}
-
-interface MovementRecord {
-  id: string;
-  tipo: 'entrada' | 'salida' | 'ajuste';
-  cantidad: number;
-  fecha: Date;
-  motivo: string;
-  usuario: string;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { useInventoryProducts } from '@/hooks/useInventoryProducts';
+import { useInventoryCategories } from '@/hooks/useInventoryCategories';
+import { useSuppliers } from '@/hooks/useSuppliers';
+import { useToast } from '@/hooks/use-toast';
+import CategoriesManagementDialog from './CategoriesManagementDialog';
 
 const SuppliesInventory: React.FC = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('todos');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [showMovements, setShowMovements] = useState(false);
+  const [showCategoriesDialog, setShowCategoriesDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  
+  const hotelId = user?.hotel;
+  
+  const { products, loading: loadingProducts, addProduct, updateProduct, deleteProduct } = useInventoryProducts(hotelId);
+  const { categories, loading: loadingCategories } = useInventoryCategories(hotelId);
+  const { suppliers, loading: loadingSuppliers } = useSuppliers(hotelId);
 
-  // Mock data
-  const [supplies] = useState<SupplyItem[]>([
-    {
-      id: '1',
-      nombre: 'Filete de Res',
-      categoria: 'Carnes',
-      unidadMedida: 'kg',
-      stockActual: 5,
-      stockMinimo: 10,
-      stockMaximo: 50,
-      costoUnitario: 35000,
-      proveedor: 'Frigorífico Premium',
-      ubicacion: 'Refrigerador Principal',
-      fechaVencimiento: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      estado: 'bajo_stock'
-    },
-    {
-      id: '2',
-      nombre: 'Ron Blanco Premium',
-      categoria: 'Licores',
-      unidadMedida: 'botella',
-      stockActual: 25,
-      stockMinimo: 15,
-      stockMaximo: 100,
-      costoUnitario: 85000,
-      proveedor: 'Distribuidora Licores SA',
-      ubicacion: 'Bodega Bar',
-      estado: 'disponible'
-    },
-    {
-      id: '3',
-      nombre: 'Leche Entera',
-      categoria: 'Lácteos',
-      unidadMedida: 'litro',
-      stockActual: 0,
-      stockMinimo: 20,
-      stockMaximo: 80,
-      costoUnitario: 3500,
-      proveedor: 'Lácteos del Valle',
-      ubicacion: 'Refrigerador Lácteos',
-      fechaVencimiento: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      estado: 'agotado'
+  const [formData, setFormData] = useState({
+    nombre: '',
+    categoriaId: '',
+    unidadMedida: 'kg',
+    stockActual: 0,
+    stockMinimo: 10,
+    stockMaximo: 100,
+    costoUnitario: 0,
+    proveedorId: '',
+    ubicacion: '',
+    fechaVencimiento: ''
+  });
+
+  // Calculate product state based on stock levels and expiration
+  const getProductState = (product: any) => {
+    const now = new Date();
+    if (product.fechaVencimiento && product.fechaVencimiento < now) {
+      return 'vencido';
     }
-  ]);
+    if (product.stockActual <= 0) {
+      return 'agotado';
+    }
+    if (product.stockActual <= product.stockMinimo) {
+      return 'bajo_stock';
+    }
+    return 'disponible';
+  };
 
-  const categories = ['Carnes', 'Pescados', 'Vegetales', 'Lácteos', 'Granos', 'Condimentos', 'Licores', 'Bebidas'];
+  // Enrich products with category and supplier names
+  const enrichedProducts = useMemo(() => {
+    return products.map(product => {
+      const category = categories.find(c => c.id === product.categoriaId);
+      const supplier = suppliers.find(s => s.id === product.proveedorId);
+      const estado = getProductState(product);
+      
+      return {
+        ...product,
+        categoriaNombre: category?.nombre || 'Sin categoría',
+        proveedorNombre: supplier?.nombre || 'Sin proveedor',
+        estado
+      };
+    });
+  }, [products, categories, suppliers]);
+
+  // Filter products
+  const filteredProducts = useMemo(() => {
+    return enrichedProducts.filter(product => {
+      const matchesSearch = product.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = filterCategory === 'todos' || product.categoriaId === filterCategory;
+      const matchesStatus = filterStatus === 'todos' || product.estado === filterStatus;
+      
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [enrichedProducts, searchTerm, filterCategory, filterStatus]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -133,11 +133,132 @@ const SuppliesInventory: React.FC = () => {
     }).format(amount);
   };
 
-  const lowStockItems = supplies.filter(item => item.estado === 'bajo_stock' || item.estado === 'agotado');
-  const expiringSoon = supplies.filter(item => 
+  const lowStockItems = filteredProducts.filter(item => item.estado === 'bajo_stock' || item.estado === 'agotado');
+  const expiringSoon = filteredProducts.filter(item => 
     item.fechaVencimiento && 
     item.fechaVencimiento <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.nombre || !formData.categoriaId || !formData.proveedorId) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos requeridos",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const productData = {
+        nombre: formData.nombre,
+        categoriaId: formData.categoriaId,
+        unidadMedida: formData.unidadMedida,
+        stockActual: Number(formData.stockActual),
+        stockMinimo: Number(formData.stockMinimo),
+        stockMaximo: Number(formData.stockMaximo),
+        costoUnitario: Number(formData.costoUnitario),
+        proveedorId: formData.proveedorId,
+        ubicacion: formData.ubicacion,
+        fechaVencimiento: formData.fechaVencimiento ? new Date(formData.fechaVencimiento) : undefined,
+        estado: 'disponible' as const,
+        hotelId: hotelId!
+      };
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+        toast({
+          title: "Producto actualizado",
+          description: "El producto se actualizó correctamente"
+        });
+      } else {
+        await addProduct(productData);
+        toast({
+          title: "Producto agregado",
+          description: "El producto se agregó al inventario correctamente"
+        });
+      }
+
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+      setFormData({
+        nombre: '',
+        categoriaId: '',
+        unidadMedida: 'kg',
+        stockActual: 0,
+        stockMinimo: 10,
+        stockMaximo: 100,
+        costoUnitario: 0,
+        proveedorId: '',
+        ubicacion: '',
+        fechaVencimiento: ''
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el producto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEdit = (product: any) => {
+    setEditingProduct(product);
+    setFormData({
+      nombre: product.nombre,
+      categoriaId: product.categoriaId,
+      unidadMedida: product.unidadMedida,
+      stockActual: product.stockActual,
+      stockMinimo: product.stockMinimo,
+      stockMaximo: product.stockMaximo,
+      costoUnitario: product.costoUnitario,
+      proveedorId: product.proveedorId,
+      ubicacion: product.ubicacion,
+      fechaVencimiento: product.fechaVencimiento ? product.fechaVencimiento.toISOString().split('T')[0] : ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este producto?')) return;
+    
+    try {
+      await deleteProduct(id);
+      toast({
+        title: "Producto eliminado",
+        description: "El producto se eliminó del inventario"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el producto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleOpenDialog = () => {
+    setEditingProduct(null);
+    setFormData({
+      nombre: '',
+      categoriaId: '',
+      unidadMedida: 'kg',
+      stockActual: 0,
+      stockMinimo: 10,
+      stockMaximo: 100,
+      costoUnitario: 0,
+      proveedorId: '',
+      ubicacion: '',
+      fechaVencimiento: ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  if (loadingProducts || loadingCategories || loadingSuppliers) {
+    return <div className="flex justify-center items-center h-64">Cargando inventario...</div>;
+  }
 
   return (
     <motion.div
@@ -189,7 +310,7 @@ const SuppliesInventory: React.FC = () => {
             <SelectContent>
               <SelectItem value="todos">Todas las categorías</SelectItem>
               {categories.map(category => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
+                <SelectItem key={category.id} value={category.id}>{category.nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -207,11 +328,11 @@ const SuppliesInventory: React.FC = () => {
           </Select>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowMovements(true)}>
-            <History className="h-4 w-4 mr-2" />
-            Movimientos
+          <Button variant="outline" onClick={() => setShowCategoriesDialog(true)}>
+            <Settings className="h-4 w-4 mr-2" />
+            Categorías
           </Button>
-          <Button onClick={() => setIsDialogOpen(true)}>
+          <Button onClick={handleOpenDialog}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Producto
           </Button>
@@ -220,7 +341,12 @@ const SuppliesInventory: React.FC = () => {
 
       {/* Supplies Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {supplies.map((supply) => (
+        {filteredProducts.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-muted-foreground">
+            {products.length === 0 ? 'No hay productos en el inventario' : 'No se encontraron productos con los filtros aplicados'}
+          </div>
+        ) : (
+          filteredProducts.map((supply) => (
           <motion.div
             key={supply.id}
             whileHover={{ scale: 1.02 }}
@@ -240,7 +366,7 @@ const SuppliesInventory: React.FC = () => {
                         <span className="ml-1 capitalize">{supply.estado.replace('_', ' ')}</span>
                       </Badge>
                     </div>
-                    <Badge variant="outline">{supply.categoria}</Badge>
+                    <Badge variant="outline">{supply.categoriaNombre}</Badge>
                   </div>
                 </div>
               </CardHeader>
@@ -267,7 +393,7 @@ const SuppliesInventory: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Proveedor:</span>
-                    <span className="text-right">{supply.proveedor}</span>
+                    <span className="text-right">{supply.proveedorNombre}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Ubicación:</span>
@@ -307,19 +433,19 @@ const SuppliesInventory: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supply)}>
                     <Edit className="h-4 w-4 mr-1" />
                     Editar
                   </Button>
-                  <Button size="sm" variant="outline">
-                    <Truck className="h-4 w-4 mr-1" />
-                    Reabastecer
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(supply.id)}>
+                    <Package className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Quick Stats */}
@@ -328,7 +454,7 @@ const SuppliesInventory: React.FC = () => {
           <CardContent className="p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {supplies.filter(s => s.estado === 'disponible').length}
+                {enrichedProducts.filter(s => s.estado === 'disponible').length}
               </div>
               <div className="text-sm text-muted-foreground">Productos Disponibles</div>
             </div>
@@ -338,7 +464,7 @@ const SuppliesInventory: React.FC = () => {
           <CardContent className="p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-yellow-600">
-                {supplies.filter(s => s.estado === 'bajo_stock').length}
+                {enrichedProducts.filter(s => s.estado === 'bajo_stock').length}
               </div>
               <div className="text-sm text-muted-foreground">Bajo Stock</div>
             </div>
@@ -348,7 +474,7 @@ const SuppliesInventory: React.FC = () => {
           <CardContent className="p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
-                {supplies.filter(s => s.estado === 'agotado').length}
+                {enrichedProducts.filter(s => s.estado === 'agotado').length}
               </div>
               <div className="text-sm text-muted-foreground">Agotados</div>
             </div>
@@ -358,7 +484,7 @@ const SuppliesInventory: React.FC = () => {
           <CardContent className="p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">
-                {formatCurrency(supplies.reduce((sum, s) => sum + (s.stockActual * s.costoUnitario), 0))}
+                {formatCurrency(enrichedProducts.reduce((sum, s) => sum + (s.stockActual * s.costoUnitario), 0))}
               </div>
               <div className="text-sm text-muted-foreground">Valor Inventario</div>
             </div>
@@ -370,104 +496,184 @@ const SuppliesInventory: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuevo Producto de Inventario</DialogTitle>
+            <DialogTitle>{editingProduct ? 'Editar' : 'Nuevo'} Producto de Inventario</DialogTitle>
             <DialogDescription>
-              Registra un nuevo producto en el inventario de insumos
+              {editingProduct ? 'Actualiza los datos del producto' : 'Registra un nuevo producto en el inventario de insumos'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="nombre">Nombre del Producto</Label>
-                <Input id="nombre" placeholder="Ej: Filete de Res" />
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="nombre">Nombre del Producto</Label>
+                  <Input 
+                    id="nombre" 
+                    placeholder="Ej: Filete de Res"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="categoria">Categoría</Label>
+                  <Select
+                    value={formData.categoriaId}
+                    onValueChange={(value) => setFormData({ ...formData, categoriaId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No hay categorías. Créalas primero.
+                        </div>
+                      ) : (
+                        categories.map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.nombre}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="unidad">Unidad de Medida</Label>
+                  <Select
+                    value={formData.unidadMedida}
+                    onValueChange={(value) => setFormData({ ...formData, unidadMedida: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar unidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kg">Kilogramos (kg)</SelectItem>
+                      <SelectItem value="g">Gramos (g)</SelectItem>
+                      <SelectItem value="litro">Litros (L)</SelectItem>
+                      <SelectItem value="ml">Mililitros (ml)</SelectItem>
+                      <SelectItem value="unidad">Unidad</SelectItem>
+                      <SelectItem value="botella">Botella</SelectItem>
+                      <SelectItem value="caja">Caja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="proveedor">Proveedor</Label>
+                  <Select
+                    value={formData.proveedorId}
+                    onValueChange={(value) => setFormData({ ...formData, proveedorId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No hay proveedores registrados
+                        </div>
+                      ) : (
+                        suppliers.filter(s => s.estado === 'activo').map(supplier => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.nombre}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               
-              <div>
-                <Label htmlFor="categoria">Categoría</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="unidad">Unidad de Medida</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar unidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="kg">Kilogramos (kg)</SelectItem>
-                    <SelectItem value="g">Gramos (g)</SelectItem>
-                    <SelectItem value="litro">Litros (L)</SelectItem>
-                    <SelectItem value="ml">Mililitros (ml)</SelectItem>
-                    <SelectItem value="unidad">Unidad</SelectItem>
-                    <SelectItem value="botella">Botella</SelectItem>
-                    <SelectItem value="caja">Caja</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="proveedor">Proveedor</Label>
-                <Input id="proveedor" placeholder="Nombre del proveedor" />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="stockActual">Stock Actual</Label>
+                    <Input 
+                      id="stockActual" 
+                      type="number" 
+                      placeholder="0"
+                      value={formData.stockActual}
+                      onChange={(e) => setFormData({ ...formData, stockActual: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="stockMinimo">Stock Mínimo</Label>
+                    <Input 
+                      id="stockMinimo" 
+                      type="number" 
+                      placeholder="10"
+                      value={formData.stockMinimo}
+                      onChange={(e) => setFormData({ ...formData, stockMinimo: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="stockMaximo">Stock Máximo</Label>
+                    <Input 
+                      id="stockMaximo" 
+                      type="number" 
+                      placeholder="100"
+                      value={formData.stockMaximo}
+                      onChange={(e) => setFormData({ ...formData, stockMaximo: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="costo">Costo Unitario</Label>
+                    <Input 
+                      id="costo" 
+                      type="number" 
+                      placeholder="35000"
+                      value={formData.costoUnitario}
+                      onChange={(e) => setFormData({ ...formData, costoUnitario: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="ubicacion">Ubicación</Label>
+                  <Input 
+                    id="ubicacion" 
+                    placeholder="Ej: Refrigerador Principal"
+                    value={formData.ubicacion}
+                    onChange={(e) => setFormData({ ...formData, ubicacion: e.target.value })}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="vencimiento">Fecha de Vencimiento (Opcional)</Label>
+                  <Input 
+                    id="vencimiento" 
+                    type="date"
+                    value={formData.fechaVencimiento}
+                    onChange={(e) => setFormData({ ...formData, fechaVencimiento: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
             
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="stockActual">Stock Actual</Label>
-                  <Input id="stockActual" type="number" placeholder="0" />
-                </div>
-                <div>
-                  <Label htmlFor="stockMinimo">Stock Mínimo</Label>
-                  <Input id="stockMinimo" type="number" placeholder="10" />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="stockMaximo">Stock Máximo</Label>
-                  <Input id="stockMaximo" type="number" placeholder="100" />
-                </div>
-                <div>
-                  <Label htmlFor="costo">Costo Unitario</Label>
-                  <Input id="costo" type="number" placeholder="35000" />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="ubicacion">Ubicación</Label>
-                <Input id="ubicacion" placeholder="Ej: Refrigerador Principal" />
-              </div>
-              
-              <div>
-                <Label htmlFor="vencimiento">Fecha de Vencimiento (Opcional)</Label>
-                <Input id="vencimiento" type="date" />
-              </div>
+            <div className="flex gap-4 pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                {editingProduct ? 'Actualizar' : 'Crear'} Producto
+              </Button>
             </div>
-          </div>
-          
-          <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-              Cancelar
-            </Button>
-            <Button onClick={() => setIsDialogOpen(false)} className="flex-1">
-              Crear Producto
-            </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
+
+      {/* Categories Management Dialog */}
+      <CategoriesManagementDialog
+        open={showCategoriesDialog}
+        onOpenChange={setShowCategoriesDialog}
+        hotelId={hotelId!}
+      />
     </motion.div>
   );
 };
