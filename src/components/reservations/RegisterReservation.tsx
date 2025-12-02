@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, Save, Plus, User, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -330,7 +330,7 @@ const RegisterReservation: React.FC = () => {
                             onSelect={(date) => setReservationData(prev => ({ ...prev, checkIn: date }))}
                             initialFocus
                             className={cn("p-3 pointer-events-auto")}
-                            disabled={(date) => date < new Date()}
+                            disabled={(date) => startOfDay(date) < startOfDay(new Date())}
                           />
                         </PopoverContent>
                       </Popover>
