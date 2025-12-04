@@ -23,6 +23,7 @@ export interface HousekeepingProduct {
   stockMaximo: number;
   costoUnitario: number;
   proveedor: string;
+  proveedorId?: string;
   ubicacion: string;
   fechaVencimiento?: Date;
   ultimoRestock?: Date;

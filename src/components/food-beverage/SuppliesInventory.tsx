@@ -70,6 +70,18 @@ const SuppliesInventory: React.FC = () => {
     return 'disponible';
   };
 
+  // Get category IDs for Food & Beverage inventory to filter suppliers
+  const foodBeverageCategoryIds = useMemo(() => {
+    return categories.map(c => c.id);
+  }, [categories]);
+
+  // Filter suppliers to only show those from Food & Beverage categories
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter(s => 
+      s.estado === 'activo' && foodBeverageCategoryIds.includes(s.categoria)
+    );
+  }, [suppliers, foodBeverageCategoryIds]);
+
   // Enrich products with category and supplier names
   const enrichedProducts = useMemo(() => {
     return products.map(product => {
@@ -571,12 +583,12 @@ const SuppliesInventory: React.FC = () => {
                       <SelectValue placeholder="Seleccionar proveedor" />
                     </SelectTrigger>
                     <SelectContent>
-                      {suppliers.length === 0 ? (
+                      {filteredSuppliers.length === 0 ? (
                         <div className="p-2 text-sm text-muted-foreground text-center">
-                          No hay proveedores registrados
+                          No hay proveedores de alimentos y bebidas
                         </div>
                       ) : (
-                        suppliers.filter(s => s.estado === 'activo').map(supplier => (
+                        filteredSuppliers.map(supplier => (
                           <SelectItem key={supplier.id} value={supplier.id}>
                             {supplier.nombre}
                           </SelectItem>
