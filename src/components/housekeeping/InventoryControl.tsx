@@ -31,12 +31,14 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useHousekeepingCategories, HousekeepingCategory } from '@/hooks/useHousekeepingCategories';
 import { useHousekeepingProducts, HousekeepingProduct } from '@/hooks/useHousekeepingProducts';
+import { useSuppliers } from '@/hooks/useSuppliers';
 import { toast } from 'sonner';
 
 const InventoryControl: React.FC = () => {
   const { user } = useAuth();
   const { categories, addCategory, updateCategory, deleteCategory, loading: loadingCategories } = useHousekeepingCategories(user?.hotel);
   const { products, addProduct, updateProduct, deleteProduct, loading: loadingProducts } = useHousekeepingProducts(user?.hotel);
+  const { suppliers, loading: loadingSuppliers } = useSuppliers(user?.hotel);
   
   // Dialog states
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -49,6 +51,14 @@ const InventoryControl: React.FC = () => {
   const [adjustmentQuantity, setAdjustmentQuantity] = useState<number>(0);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [saving, setSaving] = useState(false);
+
+  // Get category IDs for Housekeeping inventory to filter suppliers
+  const housekeepingCategoryIds = categories.map(c => c.id);
+
+  // Filter suppliers to only show those from Housekeeping categories
+  const filteredSuppliers = suppliers.filter(s => 
+    s.estado === 'activo' && housekeepingCategoryIds.includes(s.categoria)
+  );
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -67,7 +77,7 @@ const InventoryControl: React.FC = () => {
     stockMinimo: 0,
     stockMaximo: 0,
     costoUnitario: 0,
-    proveedor: '',
+    proveedorId: '',
     ubicacion: '',
     autoReorder: true,
     usoDiario: 0
@@ -108,6 +118,11 @@ const InventoryControl: React.FC = () => {
   const getCategoryName = (categoriaId: string) => {
     const category = categories.find(c => c.id === categoriaId);
     return category?.nombre || 'Sin categoría';
+  };
+
+  const getSupplierName = (proveedorId: string) => {
+    const supplier = suppliers.find(s => s.id === proveedorId);
+    return supplier?.nombre || 'Sin proveedor';
   };
 
   // Handle Category Save
@@ -157,12 +172,28 @@ const InventoryControl: React.FC = () => {
 
     setSaving(true);
     try {
+      const productData = {
+        nombre: productForm.nombre,
+        categoriaId: productForm.categoriaId,
+        tipo: productForm.tipo,
+        unidadMedida: productForm.unidadMedida,
+        stockActual: productForm.stockActual,
+        stockMinimo: productForm.stockMinimo,
+        stockMaximo: productForm.stockMaximo,
+        costoUnitario: productForm.costoUnitario,
+        proveedor: getSupplierName(productForm.proveedorId),
+        proveedorId: productForm.proveedorId,
+        ubicacion: productForm.ubicacion,
+        autoReorder: productForm.autoReorder,
+        usoDiario: productForm.usoDiario
+      };
+
       if (editingProduct) {
-        await updateProduct(editingProduct.id, productForm);
+        await updateProduct(editingProduct.id, productData);
         toast.success('Producto actualizado correctamente');
       } else {
         await addProduct({
-          ...productForm,
+          ...productData,
           hotelId: user?.hotel || ''
         });
         toast.success('Producto creado correctamente');
@@ -239,7 +270,7 @@ const InventoryControl: React.FC = () => {
       stockMinimo: 0,
       stockMaximo: 0,
       costoUnitario: 0,
-      proveedor: '',
+      proveedorId: '',
       ubicacion: '',
       autoReorder: true,
       usoDiario: 0
@@ -267,7 +298,7 @@ const InventoryControl: React.FC = () => {
       stockMinimo: product.stockMinimo,
       stockMaximo: product.stockMaximo,
       costoUnitario: product.costoUnitario,
-      proveedor: product.proveedor,
+      proveedorId: product.proveedorId || '',
       ubicacion: product.ubicacion,
       autoReorder: product.autoReorder,
       usoDiario: product.usoDiario
@@ -279,7 +310,7 @@ const InventoryControl: React.FC = () => {
   const criticalItems = products.filter(p => getStockLevel(p) === 'critical');
   const lowStockItems = products.filter(p => getStockLevel(p) === 'low');
 
-  if (loadingCategories || loadingProducts) {
+  if (loadingCategories || loadingProducts || loadingSuppliers) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -757,12 +788,27 @@ const InventoryControl: React.FC = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="prod-proveedor">Proveedor</Label>
-              <Input
-                id="prod-proveedor"
-                value={productForm.proveedor}
-                onChange={(e) => setProductForm({ ...productForm, proveedor: e.target.value })}
-                placeholder="Nombre del proveedor"
-              />
+              <Select 
+                value={productForm.proveedorId} 
+                onValueChange={(value) => setProductForm({ ...productForm, proveedorId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredSuppliers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      No hay proveedores de housekeeping
+                    </div>
+                  ) : (
+                    filteredSuppliers.map(supplier => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.nombre}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="prod-ubicacion">Ubicación</Label>
