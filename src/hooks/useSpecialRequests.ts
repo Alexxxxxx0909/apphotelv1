@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -42,8 +42,7 @@ export const useSpecialRequests = () => {
 
     const q = query(
       collection(db, 'specialRequests'),
-      where('hotelId', '==', user.hotel),
-      orderBy('createdAt', 'desc')
+      where('hotelId', '==', user.hotel)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -51,6 +50,14 @@ export const useSpecialRequests = () => {
         id: doc.id,
         ...doc.data()
       })) as SpecialRequest[];
+      
+      // Sort in memory to avoid needing a composite index
+      requestsData.sort((a, b) => {
+        const dateA = a.createdAt?.toMillis?.() || 0;
+        const dateB = b.createdAt?.toMillis?.() || 0;
+        return dateB - dateA;
+      });
+      
       setRequests(requestsData);
       setLoading(false);
     }, (error) => {
