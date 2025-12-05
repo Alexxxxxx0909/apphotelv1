@@ -52,13 +52,13 @@ const InventoryControl: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [saving, setSaving] = useState(false);
 
-  // Get category IDs for Housekeeping inventory to filter suppliers
-  const housekeepingCategoryIds = categories.map(c => c.id);
-
   // Filter suppliers to only show those from Housekeeping categories
-  const filteredSuppliers = suppliers.filter(s => 
-    s.estado === 'activo' && housekeepingCategoryIds.includes(s.categoria)
-  );
+  // Suppliers have categoria stored as "inv:{categoryId}" or "hk:{categoryId}"
+  const filteredSuppliers = suppliers.filter(s => {
+    if (s.estado !== 'activo') return false;
+    // Check if supplier's category starts with "hk:" prefix (housekeeping)
+    return s.categoria?.startsWith('hk:');
+  });
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({

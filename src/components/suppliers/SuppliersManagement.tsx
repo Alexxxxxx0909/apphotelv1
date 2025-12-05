@@ -171,7 +171,7 @@ const SuppliersManagement: React.FC = () => {
                           📦 Inventario Alimentos y Bebidas
                         </SelectLabel>
                         {inventoryCategories.map((cat) => (
-                          <SelectItem key={`inv-${cat.id}`} value={`inv-${cat.nombre}`}>
+                          <SelectItem key={`inv-${cat.id}`} value={`inv:${cat.id}`}>
                             {cat.nombre} ({getInventoryCategoryTypeLabel(cat.tipo)})
                           </SelectItem>
                         ))}
@@ -185,7 +185,7 @@ const SuppliersManagement: React.FC = () => {
                           🧹 Inventario Housekeeping
                         </SelectLabel>
                         {housekeepingCategories.map((cat) => (
-                          <SelectItem key={`hk-${cat.id}`} value={`hk-${cat.nombre}`}>
+                          <SelectItem key={`hk-${cat.id}`} value={`hk:${cat.id}`}>
                             {cat.nombre} ({getHousekeepingCategoryTypeLabel(cat.tipo)})
                           </SelectItem>
                         ))}

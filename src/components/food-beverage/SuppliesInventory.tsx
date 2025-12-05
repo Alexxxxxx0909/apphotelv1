@@ -70,17 +70,15 @@ const SuppliesInventory: React.FC = () => {
     return 'disponible';
   };
 
-  // Get category IDs for Food & Beverage inventory to filter suppliers
-  const foodBeverageCategoryIds = useMemo(() => {
-    return categories.map(c => c.id);
-  }, [categories]);
-
   // Filter suppliers to only show those from Food & Beverage categories
+  // Suppliers have categoria stored as "inv:{categoryId}" or "hk:{categoryId}"
   const filteredSuppliers = useMemo(() => {
-    return suppliers.filter(s => 
-      s.estado === 'activo' && foodBeverageCategoryIds.includes(s.categoria)
-    );
-  }, [suppliers, foodBeverageCategoryIds]);
+    return suppliers.filter(s => {
+      if (s.estado !== 'activo') return false;
+      // Check if supplier's category starts with "inv:" prefix (food & beverage)
+      return s.categoria?.startsWith('inv:');
+    });
+  }, [suppliers]);
 
   // Enrich products with category and supplier names
   const enrichedProducts = useMemo(() => {
