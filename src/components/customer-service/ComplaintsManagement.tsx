@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,77 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useComplaints } from '@/hooks/useComplaints';
+import { Timestamp } from 'firebase/firestore';
 import { 
   Plus, 
   AlertTriangle, 
   Clock, 
   CheckCircle, 
-  MessageCircle,
+  User,
   Search,
-  Filter,
-  Calendar,
-  User
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
-interface Complaint {
-  id: string;
-  guestName: string;
-  roomNumber: string;
-  category: string;
-  subject: string;
-  description: string;
-  severity: 'critica' | 'alta' | 'media' | 'baja';
-  status: 'abierta' | 'en-proceso' | 'resuelta' | 'escalada';
-  createdAt: string;
-  resolvedAt?: string;
-  assignedTo?: string;
-  solution?: string;
-  compensation?: string;
-}
-
-const mockComplaints: Complaint[] = [
-  {
-    id: '1',
-    guestName: 'Roberto Fernández',
-    roomNumber: '402',
-    category: 'Limpieza',
-    subject: 'Habitación no limpia al check-in',
-    description: 'La habitación tenía toallas sucias y el baño no estaba limpio cuando llegamos',
-    severity: 'alta',
-    status: 'resuelta',
-    createdAt: '2024-01-14 16:30',
-    resolvedAt: '2024-01-14 18:45',
-    assignedTo: 'Ana García',
-    solution: 'Se limpió inmediatamente la habitación y se cambiaron todas las amenities',
-    compensation: 'Descuento del 15% en la factura'
-  },
-  {
-    id: '2',
-    guestName: 'Elena Morales',
-    roomNumber: '208',
-    category: 'Ruido',
-    subject: 'Ruido excesivo de obras en construcción',
-    description: 'Desde las 7 AM hay ruido de construcción que impide descansar',
-    severity: 'media',
-    status: 'en-proceso',
-    createdAt: '2024-01-15 08:15',
-    assignedTo: 'Carlos Ruiz'
-  },
-  {
-    id: '3',
-    guestName: 'José Martínez',
-    roomNumber: '315',
-    category: 'Servicio',
-    subject: 'Demora excesiva en room service',
-    description: 'Pedido de desayuno hace 2 horas y aún no llega',
-    severity: 'media',
-    status: 'abierta',
-    createdAt: '2024-01-15 10:30'
-  }
-];
-
 const ComplaintsManagement: React.FC = () => {
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const { complaints, loading, addComplaint, updateComplaint, deleteComplaint } = useComplaints();
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -87,47 +31,57 @@ const ComplaintsManagement: React.FC = () => {
     category: '',
     subject: '',
     description: '',
-    severity: 'media' as const
+    severity: 'media' as 'critica' | 'alta' | 'media' | 'baja'
   });
 
-  const filteredComplaints = complaints.filter(complaint => {
-    const matchesSearch = complaint.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         complaint.roomNumber.includes(searchTerm) ||
-                         complaint.subject.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const handleCreateComplaint = () => {
-    const complaint: Complaint = {
-      id: Date.now().toString(),
-      ...newComplaint,
-      status: 'abierta',
-      createdAt: new Date().toLocaleString('es-ES')
-    };
-    
-    setComplaints([complaint, ...complaints]);
-    setNewComplaint({
-      guestName: '',
-      roomNumber: '',
-      category: '',
-      subject: '',
-      description: '',
-      severity: 'media'
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter(complaint => {
+      const matchesSearch = complaint.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           complaint.roomNumber.includes(searchTerm) ||
+                           complaint.subject.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-    setShowForm(false);
+  }, [complaints, searchTerm, statusFilter]);
+
+  const handleCreateComplaint = async () => {
+    if (!newComplaint.guestName || !newComplaint.roomNumber || !newComplaint.category || !newComplaint.subject) {
+      return;
+    }
+
+    const result = await addComplaint(newComplaint);
+    if (result) {
+      setNewComplaint({
+        guestName: '',
+        roomNumber: '',
+        category: '',
+        subject: '',
+        description: '',
+        severity: 'media'
+      });
+      setShowForm(false);
+    }
   };
 
-  const updateComplaintStatus = (id: string, status: Complaint['status'], solution?: string, compensation?: string) => {
-    setComplaints(complaints.map(complaint => 
-      complaint.id === id ? { 
-        ...complaint, 
-        status,
-        resolvedAt: status === 'resuelta' ? new Date().toLocaleString('es-ES') : complaint.resolvedAt,
-        solution: solution || complaint.solution,
-        compensation: compensation || complaint.compensation
-      } : complaint
-    ));
+  const handleStatusChange = async (id: string, status: 'abierta' | 'en-proceso' | 'resuelta' | 'escalada', solution?: string, compensation?: string) => {
+    const updates: any = { status };
+    if (status === 'resuelta') {
+      updates.resolvedAt = Timestamp.now();
+      if (solution) updates.solution = solution;
+      if (compensation) updates.compensation = compensation;
+    }
+    await updateComplaint(id, updates);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('¿Estás seguro de eliminar esta queja?')) {
+      await deleteComplaint(id);
+    }
+  };
+
+  const formatDate = (timestamp: Timestamp | undefined) => {
+    if (!timestamp) return '';
+    return timestamp.toDate().toLocaleString('es-ES');
   };
 
   const getStatusBadge = (status: string) => {
@@ -149,6 +103,24 @@ const ComplaintsManagement: React.FC = () => {
     };
     return variants[severity as keyof typeof variants] || variants.media;
   };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      'abierta': 'ABIERTA',
+      'en-proceso': 'EN PROCESO',
+      'resuelta': 'RESUELTA',
+      'escalada': 'ESCALADA'
+    };
+    return labels[status] || status.toUpperCase();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -252,7 +224,7 @@ const ComplaintsManagement: React.FC = () => {
               </div>
               <div>
                 <Label htmlFor="severity">Severidad</Label>
-                <Select value={newComplaint.severity} onValueChange={(value: any) => setNewComplaint({...newComplaint, severity: value})}>
+                <Select value={newComplaint.severity} onValueChange={(value: 'critica' | 'alta' | 'media' | 'baja') => setNewComplaint({...newComplaint, severity: value})}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -317,7 +289,7 @@ const ComplaintsManagement: React.FC = () => {
                     {complaint.severity.toUpperCase()}
                   </Badge>
                   <Badge className={getStatusBadge(complaint.status)}>
-                    {complaint.status.replace('-', ' ').toUpperCase()}
+                    {getStatusLabel(complaint.status)}
                   </Badge>
                 </div>
               </div>
@@ -326,11 +298,11 @@ const ComplaintsManagement: React.FC = () => {
               <p className="text-foreground mb-4">{complaint.description}</p>
               
               {complaint.solution && (
-                <div className="bg-green-50 p-3 rounded-lg mb-4">
-                  <h4 className="font-semibold text-green-800 mb-2">Solución aplicada:</h4>
-                  <p className="text-green-700">{complaint.solution}</p>
+                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg mb-4">
+                  <h4 className="font-semibold text-green-800 dark:text-green-300 mb-2">Solución aplicada:</h4>
+                  <p className="text-green-700 dark:text-green-400">{complaint.solution}</p>
                   {complaint.compensation && (
-                    <p className="text-green-700 mt-2"><strong>Compensación:</strong> {complaint.compensation}</p>
+                    <p className="text-green-700 dark:text-green-400 mt-2"><strong>Compensación:</strong> {complaint.compensation}</p>
                   )}
                 </div>
               )}
@@ -339,12 +311,12 @@ const ComplaintsManagement: React.FC = () => {
                 <div className="flex items-center space-x-4">
                   <span className="flex items-center">
                     <Clock className="h-4 w-4 mr-1" />
-                    Registrada: {complaint.createdAt}
+                    Registrada: {formatDate(complaint.createdAt)}
                   </span>
                   {complaint.resolvedAt && (
                     <span className="flex items-center">
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      Resuelta: {complaint.resolvedAt}
+                      Resuelta: {formatDate(complaint.resolvedAt)}
                     </span>
                   )}
                 </div>
@@ -360,7 +332,7 @@ const ComplaintsManagement: React.FC = () => {
                 {complaint.status === 'abierta' && (
                   <Button 
                     size="sm" 
-                    onClick={() => updateComplaintStatus(complaint.id, 'en-proceso')}
+                    onClick={() => handleStatusChange(complaint.id, 'en-proceso')}
                   >
                     Tomar Caso
                   </Button>
@@ -373,7 +345,7 @@ const ComplaintsManagement: React.FC = () => {
                         const solution = prompt('Describe la solución aplicada:');
                         const compensation = prompt('Compensación ofrecida (opcional):');
                         if (solution) {
-                          updateComplaintStatus(complaint.id, 'resuelta', solution, compensation || undefined);
+                          handleStatusChange(complaint.id, 'resuelta', solution, compensation || undefined);
                         }
                       }}
                     >
@@ -383,12 +355,19 @@ const ComplaintsManagement: React.FC = () => {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => updateComplaintStatus(complaint.id, 'escalada')}
+                      onClick={() => handleStatusChange(complaint.id, 'escalada')}
                     >
                       Escalar
                     </Button>
                   </>
                 )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(complaint.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
