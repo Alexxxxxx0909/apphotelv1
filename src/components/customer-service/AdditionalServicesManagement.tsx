@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { useAdditionalServices, NewAdditionalService } from '@/hooks/useAdditionalServices';
 import { 
   Plus, 
   Car, 
@@ -17,64 +19,10 @@ import {
   CheckCircle, 
   Search,
   DollarSign,
-  Calendar
+  Calendar,
+  Trash2,
+  Loader2
 } from 'lucide-react';
-
-interface AdditionalService {
-  id: string;
-  guestName: string;
-  roomNumber: string;
-  serviceType: string;
-  serviceName: string;
-  description: string;
-  price: number;
-  status: 'solicitado' | 'confirmado' | 'en-proceso' | 'completado' | 'cancelado';
-  requestedDate: string;
-  serviceDate: string;
-  notes?: string;
-  provider?: string;
-}
-
-const mockServices: AdditionalService[] = [
-  {
-    id: '1',
-    guestName: 'Andrea López',
-    roomNumber: '301',
-    serviceType: 'Transporte',
-    serviceName: 'Traslado al aeropuerto',
-    description: 'Traslado para 2 personas al aeropuerto internacional',
-    price: 45.00,
-    status: 'confirmado',
-    requestedDate: '2024-01-15 14:30',
-    serviceDate: '2024-01-16 08:00',
-    provider: 'Taxi Premium'
-  },
-  {
-    id: '2',
-    guestName: 'Miguel Torres',
-    roomNumber: '205',
-    serviceType: 'Tours',
-    serviceName: 'Tour ciudad histórica',
-    description: 'Tour guiado por el centro histórico de la ciudad - 4 horas',
-    price: 75.00,
-    status: 'en-proceso',
-    requestedDate: '2024-01-15 10:15',
-    serviceDate: '2024-01-15 15:00',
-    provider: 'Tours & Cultura'
-  },
-  {
-    id: '3',
-    guestName: 'Carmen Vega',
-    roomNumber: '408',
-    serviceType: 'Spa',
-    serviceName: 'Masaje relajante',
-    description: 'Masaje relajante de 60 minutos en la habitación',
-    price: 120.00,
-    status: 'solicitado',
-    requestedDate: '2024-01-15 16:20',
-    serviceDate: '2024-01-15 19:00'
-  }
-];
 
 const serviceTypes = [
   { value: 'transporte', label: 'Transporte', icon: Car },
@@ -84,11 +32,13 @@ const serviceTypes = [
 ];
 
 const AdditionalServicesManagement: React.FC = () => {
-  const [services, setServices] = useState<AdditionalService[]>(mockServices);
+  const { services, loading, addService, updateServiceStatus, deleteService } = useAdditionalServices();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [newService, setNewService] = useState({
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newService, setNewService] = useState<NewAdditionalService>({
     guestName: '',
     roomNumber: '',
     serviceType: '',
@@ -107,32 +57,75 @@ const AdditionalServicesManagement: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreateService = () => {
-    const service: AdditionalService = {
-      id: Date.now().toString(),
-      ...newService,
-      status: 'solicitado',
-      requestedDate: new Date().toLocaleString('es-ES')
-    };
-    
-    setServices([service, ...services]);
-    setNewService({
-      guestName: '',
-      roomNumber: '',
-      serviceType: '',
-      serviceName: '',
-      description: '',
-      price: 0,
-      serviceDate: '',
-      notes: ''
-    });
-    setShowForm(false);
+  const handleCreateService = async () => {
+    if (!newService.guestName || !newService.roomNumber || !newService.serviceType || !newService.serviceName) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos requeridos",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const success = await addService(newService);
+    setIsSubmitting(false);
+
+    if (success) {
+      toast({
+        title: "Servicio registrado",
+        description: "El servicio adicional ha sido registrado correctamente"
+      });
+      setNewService({
+        guestName: '',
+        roomNumber: '',
+        serviceType: '',
+        serviceName: '',
+        description: '',
+        price: 0,
+        serviceDate: '',
+        notes: ''
+      });
+      setShowForm(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "No se pudo registrar el servicio",
+        variant: "destructive"
+      });
+    }
   };
 
-  const updateServiceStatus = (id: string, status: AdditionalService['status']) => {
-    setServices(services.map(service => 
-      service.id === id ? { ...service, status } : service
-    ));
+  const handleUpdateStatus = async (id: string, status: 'solicitado' | 'confirmado' | 'en-proceso' | 'completado' | 'cancelado') => {
+    const success = await updateServiceStatus(id, status);
+    if (success) {
+      toast({
+        title: "Estado actualizado",
+        description: `El servicio ha sido marcado como ${status.replace('-', ' ')}`
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    const success = await deleteService(id);
+    if (success) {
+      toast({
+        title: "Servicio eliminado",
+        description: "El servicio ha sido eliminado correctamente"
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el servicio",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -151,9 +144,26 @@ const AdditionalServicesManagement: React.FC = () => {
     return type ? type.icon : Car;
   };
 
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'N/A';
+    if (timestamp.toDate) {
+      return timestamp.toDate().toLocaleString('es-ES');
+    }
+    return timestamp;
+  };
+
   const totalRevenue = services
     .filter(s => s.status === 'completado')
-    .reduce((sum, service) => sum + service.price, 0);
+    .reduce((sum, service) => sum + (service.price || 0), 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Cargando servicios...</span>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -271,7 +281,7 @@ const AdditionalServicesManagement: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="guest-name">Nombre del Huésped</Label>
+                <Label htmlFor="guest-name">Nombre del Huésped *</Label>
                 <Input
                   id="guest-name"
                   value={newService.guestName}
@@ -280,7 +290,7 @@ const AdditionalServicesManagement: React.FC = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="room-number">Habitación</Label>
+                <Label htmlFor="room-number">Habitación *</Label>
                 <Input
                   id="room-number"
                   value={newService.roomNumber}
@@ -292,7 +302,7 @@ const AdditionalServicesManagement: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="service-type">Tipo de Servicio</Label>
+                <Label htmlFor="service-type">Tipo de Servicio *</Label>
                 <Select value={newService.serviceType} onValueChange={(value) => setNewService({...newService, serviceType: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar tipo" />
@@ -320,7 +330,7 @@ const AdditionalServicesManagement: React.FC = () => {
             </div>
 
             <div>
-              <Label htmlFor="service-name">Nombre del Servicio</Label>
+              <Label htmlFor="service-name">Nombre del Servicio *</Label>
               <Input
                 id="service-name"
                 value={newService.serviceName}
@@ -365,7 +375,8 @@ const AdditionalServicesManagement: React.FC = () => {
               <Button variant="outline" onClick={() => setShowForm(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreateService}>
+              <Button onClick={handleCreateService} disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Crear Servicio
               </Button>
             </div>
@@ -390,7 +401,7 @@ const AdditionalServicesManagement: React.FC = () => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Badge className="bg-green-100 text-green-800">
-                      ${service.price.toFixed(2)}
+                      ${(service.price || 0).toFixed(2)}
                     </Badge>
                     <Badge className={getStatusBadge(service.status)}>
                       {service.status.replace('-', ' ').toUpperCase()}
@@ -404,11 +415,11 @@ const AdditionalServicesManagement: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-muted-foreground mb-4">
                   <div className="flex items-center">
                     <Clock className="h-4 w-4 mr-1" />
-                    Solicitado: {service.requestedDate}
+                    Solicitado: {formatDate(service.requestedDate)}
                   </div>
                   <div className="flex items-center">
                     <Calendar className="h-4 w-4 mr-1" />
-                    Programado: {service.serviceDate}
+                    Programado: {service.serviceDate || 'No definido'}
                   </div>
                   {service.provider && (
                     <div>
@@ -428,14 +439,14 @@ const AdditionalServicesManagement: React.FC = () => {
                     <>
                       <Button 
                         size="sm" 
-                        onClick={() => updateServiceStatus(service.id, 'confirmado')}
+                        onClick={() => handleUpdateStatus(service.id, 'confirmado')}
                       >
                         Confirmar
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => updateServiceStatus(service.id, 'cancelado')}
+                        onClick={() => handleUpdateStatus(service.id, 'cancelado')}
                       >
                         Cancelar
                       </Button>
@@ -444,7 +455,7 @@ const AdditionalServicesManagement: React.FC = () => {
                   {service.status === 'confirmado' && (
                     <Button 
                       size="sm" 
-                      onClick={() => updateServiceStatus(service.id, 'en-proceso')}
+                      onClick={() => handleUpdateStatus(service.id, 'en-proceso')}
                     >
                       Iniciar Servicio
                     </Button>
@@ -452,12 +463,20 @@ const AdditionalServicesManagement: React.FC = () => {
                   {service.status === 'en-proceso' && (
                     <Button 
                       size="sm" 
-                      onClick={() => updateServiceStatus(service.id, 'completado')}
+                      onClick={() => handleUpdateStatus(service.id, 'completado')}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Completar
                     </Button>
                   )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteService(service.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
