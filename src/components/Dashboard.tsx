@@ -37,6 +37,7 @@ import HotelManagementModule from './management/HotelManagementModule';
 import FoodBeverageModule from './food-beverage/FoodBeverageModule';
 import SuppliersModule from './suppliers/SuppliersModule';
 import ProfileModule from './profile/ProfileModule';
+import ManagementReportsModule from './reports/ManagementReportsModule';
 import { useHotelModules } from '@/hooks/useHotelModules';
 
 interface MenuItem {
@@ -362,6 +363,7 @@ const Dashboard: React.FC = () => {
                 {activeModule === 'gestion-hotel' && isModuleAllowed('gestion_hotelera') && <HotelManagementModule />}
                 {activeModule === 'alimentos' && isModuleAllowed('food_beverage') && <FoodBeverageModule />}
                 {activeModule === 'proveedores' && isModuleAllowed('proveedores') && <SuppliersModule />}
+                {activeModule === 'reportes' && isModuleAllowed('reportes') && <ManagementReportsModule />}
                 {activeModule === 'perfil' && <ProfileModule />}
               </>
             )}
