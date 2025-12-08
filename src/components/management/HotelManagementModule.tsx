@@ -1865,13 +1865,13 @@ const HotelManagementModule: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="editPrecio">Precio Base</Label>
+                  <Label>Precio Base</Label>
                   <Input 
-                    id="editPrecio" 
-                    type="number"
-                    value={editingRoom.precio || ''}
-                    onChange={(e) => setEditingRoom({...editingRoom, precio: parseFloat(e.target.value) || 0})}
+                    value={`$${(editingRoom.precio || 0).toLocaleString()}`}
+                    disabled
+                    className="bg-muted"
                   />
+                  <p className="text-xs text-muted-foreground">Precio automático según tipo de habitación</p>
                 </div>
               </div>
             </div>
