@@ -110,6 +110,13 @@ const HotelManagementModule: React.FC = () => {
   const [editingFeature, setEditingFeature] = useState<string | null>(null);
   const [editingType, setEditingType] = useState<any>(null);
   
+  // Estados para habitaciones
+  const [showRoomDetailsDialog, setShowRoomDetailsDialog] = useState(false);
+  const [showEditRoomDialog, setShowEditRoomDialog] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  const [editingRoom, setEditingRoom] = useState<any>(null);
+  
   const [newRoomType, setNewRoomType] = useState({
     nombre: '',
     descripcion: '',
@@ -444,12 +451,72 @@ const HotelManagementModule: React.FC = () => {
     });
   };
 
-  const handleEditRoom = async (roomId: string) => {
-    // Esta función se puede expandir para abrir un dialog de edición
-    toast({
-      title: "Funcionalidad en desarrollo",
-      description: "La edición de habitaciones estará disponible pronto.",
+  const handleViewRoomDetails = (room: any) => {
+    setSelectedRoom(room);
+    setShowRoomDetailsDialog(true);
+  };
+
+  const handleEditRoom = (room: any) => {
+    const roomType = roomTypes.find(t => t.id === room.tipoId);
+    setEditingRoom({
+      ...room,
+      tipoId: room.tipoId || roomType?.id || ''
     });
+    setShowEditRoomDialog(true);
+  };
+
+  const handleUpdateRoom = async () => {
+    if (!editingRoom?.id) return;
+    
+    try {
+      const selectedType = roomTypes.find(t => t.id === editingRoom.tipoId);
+      await updateRoom(editingRoom.id, {
+        numero: editingRoom.numero,
+        tipo: selectedType?.nombre || editingRoom.tipo,
+        tipoId: editingRoom.tipoId,
+        piso: editingRoom.piso,
+        capacidad: editingRoom.capacidad,
+        precio: editingRoom.precio,
+        caracteristicas: selectedType?.caracteristicas || editingRoom.caracteristicas
+      });
+      
+      toast({
+        title: "Habitación actualizada",
+        description: "Los datos de la habitación han sido actualizados.",
+      });
+      
+      setEditingRoom(null);
+      setShowEditRoomDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la habitación.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleOpenStatusDialog = (room: any) => {
+    setSelectedRoom(room);
+    setShowStatusDialog(true);
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    try {
+      await deleteRoom(roomId);
+      toast({
+        title: "Habitación eliminada",
+        description: "La habitación ha sido eliminada del inventario.",
+      });
+      setShowRoomDetailsDialog(false);
+      setSelectedRoom(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la habitación.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleChangeRoomStatus = async (roomId: string, newStatus: string) => {
@@ -957,6 +1024,7 @@ const HotelManagementModule: React.FC = () => {
                               variant="ghost" 
                               size="sm"
                               title="Ver detalles"
+                              onClick={() => handleViewRoomDetails(room)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -964,22 +1032,18 @@ const HotelManagementModule: React.FC = () => {
                               variant="ghost" 
                               size="sm"
                               title="Editar habitación"
-                              onClick={() => handleEditRoom(room.id)}
+                              onClick={() => handleEditRoom(room)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Select onValueChange={(value) => handleChangeRoomStatus(room.id, value)}>
-                              <SelectTrigger className="w-32 h-8">
-                                <Settings className="h-4 w-4" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="disponible">Disponible</SelectItem>
-                                <SelectItem value="ocupada">Ocupada</SelectItem>
-                                <SelectItem value="limpieza">En Limpieza</SelectItem>
-                                <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
-                                <SelectItem value="fuera_servicio">Fuera de Servicio</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              title="Cambiar estado"
+                              onClick={() => handleOpenStatusDialog(room)}
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                         </TableRow>
@@ -1617,6 +1681,291 @@ const HotelManagementModule: React.FC = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog Ver Detalles de Habitación */}
+      <Dialog open={showRoomDetailsDialog} onOpenChange={setShowRoomDetailsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bed className="h-5 w-5" />
+              Habitación {selectedRoom?.numero}
+            </DialogTitle>
+            <DialogDescription>
+              Detalles completos de la habitación
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRoom && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Número</p>
+                  <p className="font-medium">{selectedRoom.numero}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Piso</p>
+                  <p className="font-medium">{selectedRoom.piso}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Tipo</p>
+                  <Badge variant="outline">{selectedRoom.tipo}</Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Estado</p>
+                  <div className="flex items-center gap-2">
+                    {getEstadoIcon(selectedRoom.estado)}
+                    <Badge className={getEstadoColor(selectedRoom.estado)}>
+                      {selectedRoom.estado.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Capacidad</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    {selectedRoom.capacidad} personas
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Precio</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <DollarSign className="h-4 w-4" />
+                    ${selectedRoom.precio?.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              
+              {selectedRoom.caracteristicas && selectedRoom.caracteristicas.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Características</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedRoom.caracteristicas.map((c: string) => (
+                      <Badge key={c} variant="secondary" className="text-xs">
+                        {c}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                {selectedRoom.ultimaLimpieza && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Última limpieza</p>
+                    <p className="text-sm">{new Date(selectedRoom.ultimaLimpieza).toLocaleDateString()}</p>
+                  </div>
+                )}
+                {selectedRoom.proximoMantenimiento && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Próximo mantenimiento</p>
+                    <p className="text-sm">{new Date(selectedRoom.proximoMantenimiento).toLocaleDateString()}</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Fecha de registro</p>
+                <p className="text-sm">{new Date(selectedRoom.fechaCreacion).toLocaleDateString()}</p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="flex gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (confirm('¿Está seguro de eliminar esta habitación?')) {
+                  handleDeleteRoom(selectedRoom?.id);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
+            </Button>
+            <Button variant="outline" onClick={() => setShowRoomDetailsDialog(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Editar Habitación */}
+      <Dialog open={showEditRoomDialog} onOpenChange={setShowEditRoomDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Habitación</DialogTitle>
+            <DialogDescription>
+              Modifique los datos de la habitación
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingRoom && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editNumero">Número</Label>
+                  <Input 
+                    id="editNumero" 
+                    value={editingRoom.numero}
+                    onChange={(e) => setEditingRoom({...editingRoom, numero: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPiso">Piso</Label>
+                  <Input 
+                    id="editPiso" 
+                    type="number"
+                    value={editingRoom.piso || ''}
+                    onChange={(e) => setEditingRoom({...editingRoom, piso: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editTipo">Tipo</Label>
+                  <Select 
+                    value={editingRoom.tipoId} 
+                    onValueChange={(value) => {
+                      const selectedType = roomTypes.find(t => t.id === value);
+                      setEditingRoom({
+                        ...editingRoom, 
+                        tipoId: value,
+                        tipo: selectedType?.nombre || editingRoom.tipo,
+                        capacidad: selectedType?.capacidad || editingRoom.capacidad,
+                        precio: selectedType?.precioBase || editingRoom.precio
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roomTypes.map(type => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editCapacidad">Capacidad</Label>
+                  <Input 
+                    id="editCapacidad" 
+                    type="number"
+                    value={editingRoom.capacidad || ''}
+                    onChange={(e) => setEditingRoom({...editingRoom, capacidad: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPrecio">Precio Base</Label>
+                  <Input 
+                    id="editPrecio" 
+                    type="number"
+                    value={editingRoom.precio || ''}
+                    onChange={(e) => setEditingRoom({...editingRoom, precio: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowEditRoomDialog(false);
+              setEditingRoom(null);
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateRoom}>
+              Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Cambiar Estado */}
+      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cambiar Estado de Habitación</DialogTitle>
+            <DialogDescription>
+              Habitación {selectedRoom?.numero} - Estado actual: {selectedRoom?.estado?.replace('_', ' ')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-2 py-4">
+            <Button 
+              variant={selectedRoom?.estado === 'disponible' ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => {
+                handleChangeRoomStatus(selectedRoom?.id, 'disponible');
+                setShowStatusDialog(false);
+              }}
+            >
+              <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+              Disponible
+            </Button>
+            <Button 
+              variant={selectedRoom?.estado === 'ocupada' ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => {
+                handleChangeRoomStatus(selectedRoom?.id, 'ocupada');
+                setShowStatusDialog(false);
+              }}
+            >
+              <Users className="h-4 w-4 mr-2 text-red-600" />
+              Ocupada
+            </Button>
+            <Button 
+              variant={selectedRoom?.estado === 'limpieza' ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => {
+                handleChangeRoomStatus(selectedRoom?.id, 'limpieza');
+                setShowStatusDialog(false);
+              }}
+            >
+              <Settings className="h-4 w-4 mr-2 text-yellow-600" />
+              En Limpieza
+            </Button>
+            <Button 
+              variant={selectedRoom?.estado === 'mantenimiento' ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => {
+                handleChangeRoomStatus(selectedRoom?.id, 'mantenimiento');
+                setShowStatusDialog(false);
+              }}
+            >
+              <Wrench className="h-4 w-4 mr-2 text-orange-600" />
+              Mantenimiento
+            </Button>
+            <Button 
+              variant={selectedRoom?.estado === 'fuera_servicio' ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => {
+                handleChangeRoomStatus(selectedRoom?.id, 'fuera_servicio');
+                setShowStatusDialog(false);
+              }}
+            >
+              <XCircle className="h-4 w-4 mr-2 text-gray-600" />
+              Fuera de Servicio
+            </Button>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStatusDialog(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
