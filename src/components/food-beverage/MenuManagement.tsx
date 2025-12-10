@@ -25,8 +25,26 @@ import {
   Clock,
   Package,
   X,
-  Loader2
+  Loader2,
+  Beef,
+  Salad,
+  Wine,
+  ChefHat
 } from 'lucide-react';
+
+const UNIDADES_MEDIDA = [
+  { value: 'g', label: 'Gramos (g)' },
+  { value: 'kg', label: 'Kilogramos (kg)' },
+  { value: 'ml', label: 'Mililitros (ml)' },
+  { value: 'l', label: 'Litros (l)' },
+  { value: 'unidad', label: 'Unidad' },
+  { value: 'porcion', label: 'Porción' },
+  { value: 'oz', label: 'Onzas (oz)' },
+  { value: 'lb', label: 'Libras (lb)' },
+  { value: 'taza', label: 'Taza' },
+  { value: 'cucharada', label: 'Cucharada' },
+  { value: 'cucharadita', label: 'Cucharadita' },
+];
 
 const MenuManagement: React.FC = () => {
   const { user } = useAuth();
@@ -149,6 +167,8 @@ const MenuManagement: React.FC = () => {
     }
   };
 
+  const [ingredientSearch, setIngredientSearch] = useState('');
+
   const handleAddIngredient = (productId: string) => {
     const product = inventoryProducts.find(p => p.id === productId);
     if (!product) return;
@@ -166,11 +186,12 @@ const MenuManagement: React.FC = () => {
     const newIngredient: MenuItemIngredient = {
       productoId: product.id,
       nombre: product.nombre,
-      cantidad: 1,
-      unidadMedida: product.unidadMedida,
+      cantidad: 100,
+      unidadMedida: 'g',
       costoUnitario: product.costoUnitario
     };
     setSelectedIngredients([...selectedIngredients, newIngredient]);
+    setIngredientSearch('');
   };
 
   const handleUpdateIngredientQuantity = (index: number, cantidad: number) => {
@@ -179,8 +200,34 @@ const MenuManagement: React.FC = () => {
     setSelectedIngredients(updated);
   };
 
+  const handleUpdateIngredientUnit = (index: number, unidadMedida: string) => {
+    const updated = [...selectedIngredients];
+    updated[index] = { ...updated[index], unidadMedida };
+    setSelectedIngredients(updated);
+  };
+
   const handleRemoveIngredient = (index: number) => {
     setSelectedIngredients(selectedIngredients.filter((_, i) => i !== index));
+  };
+
+  // Filter inventory products by search
+  const filteredInventoryProducts = inventoryProducts.filter(product =>
+    product.nombre.toLowerCase().includes(ingredientSearch.toLowerCase())
+  );
+
+  // Get icon for ingredient category
+  const getIngredientIcon = (nombre: string) => {
+    const lower = nombre.toLowerCase();
+    if (lower.includes('carne') || lower.includes('pollo') || lower.includes('res') || lower.includes('cerdo') || lower.includes('pescado')) {
+      return <Beef className="h-4 w-4 text-red-500" />;
+    }
+    if (lower.includes('lechuga') || lower.includes('tomate') || lower.includes('ensalada') || lower.includes('vegetal') || lower.includes('verdura')) {
+      return <Salad className="h-4 w-4 text-green-500" />;
+    }
+    if (lower.includes('vino') || lower.includes('bebida') || lower.includes('jugo') || lower.includes('refresco') || lower.includes('agua')) {
+      return <Wine className="h-4 w-4 text-purple-500" />;
+    }
+    return <ChefHat className="h-4 w-4 text-orange-500" />;
   };
 
   const handleSave = async () => {
@@ -542,72 +589,149 @@ const MenuManagement: React.FC = () => {
 
               {/* Ingredients Section */}
               <div className="border-t pt-4">
-                <Label className="text-base font-semibold mb-3 block">
-                  <Package className="h-4 w-4 inline mr-2" />
-                  Ingredientes del Inventario
-                </Label>
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-primary" />
+                  <Label className="text-base font-semibold">
+                    Ingredientes del Inventario
+                  </Label>
+                </div>
                 
-                <div className="mb-4">
-                  <Label>Agregar ingrediente del inventario</Label>
-                  <Select onValueChange={handleAddIngredient}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar producto del inventario" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {inventoryProducts.map(product => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.nombre} - {formatCurrency(product.costoUnitario)}/{product.unidadMedida}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Selecciona los ingredientes del inventario para este plato/bebida. Ejemplo: Carne 200g, Lechuga 50g, etc.
+                </p>
+
+                {/* Search and add ingredient */}
+                <div className="mb-4 space-y-2">
+                  <Label>Buscar y agregar ingrediente</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="Buscar ingrediente... (ej: carne, lechuga, tomate)"
+                      value={ingredientSearch}
+                      onChange={(e) => setIngredientSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {ingredientSearch && (
+                    <div className="border rounded-lg max-h-48 overflow-y-auto bg-background shadow-lg">
+                      {filteredInventoryProducts.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No se encontraron productos
+                        </p>
+                      ) : (
+                        filteredInventoryProducts.map(product => (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => handleAddIngredient(product.id)}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left border-b last:border-b-0"
+                            disabled={selectedIngredients.some(ing => ing.productoId === product.id)}
+                          >
+                            {getIngredientIcon(product.nombre)}
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{product.nombre}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Stock: {product.stockActual} {product.unidadMedida} | Costo: {formatCurrency(product.costoUnitario)}
+                              </p>
+                            </div>
+                            {selectedIngredients.some(ing => ing.productoId === product.id) ? (
+                              <Badge variant="secondary">Agregado</Badge>
+                            ) : (
+                              <Plus className="h-4 w-4 text-primary" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
+                {/* Selected ingredients list */}
                 {selectedIngredients.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No hay ingredientes agregados. Selecciona productos del inventario.
-                  </p>
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <ChefHat className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No hay ingredientes agregados
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Busca y selecciona productos del inventario
+                    </p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-3">
+                      <div className="col-span-4">Ingrediente</div>
+                      <div className="col-span-2 text-center">Cantidad</div>
+                      <div className="col-span-2 text-center">Unidad</div>
+                      <div className="col-span-3 text-right">Subtotal</div>
+                      <div className="col-span-1"></div>
+                    </div>
+                    
                     {selectedIngredients.map((ingredient, index) => (
                       <div 
                         key={index} 
-                        className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
+                        className="grid grid-cols-12 gap-2 items-center p-3 bg-muted/50 rounded-lg"
                       >
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{ingredient.nombre}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatCurrency(ingredient.costoUnitario)} por {ingredient.unidadMedida}
-                          </p>
+                        <div className="col-span-4 flex items-center gap-2">
+                          {getIngredientIcon(ingredient.nombre)}
+                          <div>
+                            <p className="font-medium text-sm">{ingredient.nombre}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurrency(ingredient.costoUnitario)}/unidad
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="col-span-2">
                           <Input
                             type="number"
                             value={ingredient.cantidad}
                             onChange={(e) => handleUpdateIngredientQuantity(index, Number(e.target.value))}
-                            className="w-20 h-8"
-                            min={0.1}
-                            step={0.1}
+                            className="h-8 text-center"
+                            min={1}
+                            step={1}
                           />
-                          <span className="text-sm text-muted-foreground w-16">
-                            {ingredient.unidadMedida}
-                          </span>
-                          <span className="text-sm font-medium w-24 text-right">
+                        </div>
+                        <div className="col-span-2">
+                          <Select 
+                            value={ingredient.unidadMedida} 
+                            onValueChange={(value) => handleUpdateIngredientUnit(index, value)}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {UNIDADES_MEDIDA.map(u => (
+                                <SelectItem key={u.value} value={u.value}>
+                                  {u.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="col-span-3 text-right">
+                          <span className="font-medium text-sm">
                             {formatCurrency(ingredient.cantidad * ingredient.costoUnitario)}
                           </span>
+                        </div>
+                        <div className="col-span-1 flex justify-end">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveIngredient(index)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
                     ))}
-                    <div className="flex justify-end pt-2 border-t">
-                      <p className="font-semibold">
+                    
+                    <div className="flex justify-between items-center pt-3 border-t mt-3">
+                      <span className="text-sm text-muted-foreground">
+                        {selectedIngredients.length} ingrediente(s)
+                      </span>
+                      <p className="font-semibold text-lg">
                         Costo Total: {formatCurrency(formData.costo)}
                       </p>
                     </div>
