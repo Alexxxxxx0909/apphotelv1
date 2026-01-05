@@ -594,6 +594,9 @@ const MenuManagement: React.FC = () => {
                   <Label className="text-base font-semibold">
                     Ingredientes del Inventario
                   </Label>
+                  <Badge variant="outline" className="ml-2">
+                    {inventoryProducts.length} productos disponibles
+                  </Badge>
                 </div>
                 
                 <p className="text-sm text-muted-foreground mb-4">
@@ -613,38 +616,47 @@ const MenuManagement: React.FC = () => {
                     />
                   </div>
                   
-                  {ingredientSearch && (
-                    <div className="border rounded-lg max-h-48 overflow-y-auto bg-background shadow-lg">
-                      {filteredInventoryProducts.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No se encontraron productos
+                  {/* Always show available products */}
+                  <div className="border rounded-lg max-h-64 overflow-y-auto bg-background">
+                    {inventoryProducts.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          No hay productos en el inventario
                         </p>
-                      ) : (
-                        filteredInventoryProducts.map(product => (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => handleAddIngredient(product.id)}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left border-b last:border-b-0"
-                            disabled={selectedIngredients.some(ing => ing.productoId === product.id)}
-                          >
-                            {getIngredientIcon(product.nombre)}
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{product.nombre}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Stock: {product.stockActual} {product.unidadMedida} | Costo: {formatCurrency(product.costoUnitario)}
-                              </p>
-                            </div>
-                            {selectedIngredients.some(ing => ing.productoId === product.id) ? (
-                              <Badge variant="secondary">Agregado</Badge>
-                            ) : (
-                              <Plus className="h-4 w-4 text-primary" />
-                            )}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Primero agrega productos en "Inventario de Suministros"
+                        </p>
+                      </div>
+                    ) : filteredInventoryProducts.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No se encontraron productos con "{ingredientSearch}"
+                      </p>
+                    ) : (
+                      filteredInventoryProducts.map(product => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleAddIngredient(product.id)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left border-b last:border-b-0"
+                          disabled={selectedIngredients.some(ing => ing.productoId === product.id)}
+                        >
+                          {getIngredientIcon(product.nombre)}
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{product.nombre}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Stock: {product.stockActual} {product.unidadMedida} | Costo: {formatCurrency(product.costoUnitario)}
+                            </p>
+                          </div>
+                          {selectedIngredients.some(ing => ing.productoId === product.id) ? (
+                            <Badge variant="secondary">Agregado</Badge>
+                          ) : (
+                            <Plus className="h-4 w-4 text-primary" />
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 {/* Selected ingredients list */}
