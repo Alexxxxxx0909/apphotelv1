@@ -368,7 +368,7 @@ const Dashboard: React.FC = () => {
               </>
             )}
             
-            {!modulesLoading && activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && activeModule !== 'perfil' && (
+            {!modulesLoading && activeModule !== 'dashboard' && activeModule !== 'reservas' && activeModule !== 'recepcion' && activeModule !== 'atencion' && activeModule !== 'facturacion' && activeModule !== 'housekeeping' && activeModule !== 'mantenimiento' && activeModule !== 'colaboradores' && activeModule !== 'gestion-hotel' && activeModule !== 'alimentos' && activeModule !== 'proveedores' && activeModule !== 'perfil' && activeModule !== 'reportes' && (
               <Card className="p-8">
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-4">
