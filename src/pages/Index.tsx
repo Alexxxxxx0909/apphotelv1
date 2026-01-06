@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import DatabaseInitializer from '@/components/DatabaseInitializer';
 import { 
   Hotel, 
   Calendar, 
@@ -17,7 +16,11 @@ import {
   Clock,
   Star,
   ArrowRight,
-  CheckCircle
+  CheckCircle,
+  Sparkles,
+  TrendingUp,
+  Globe,
+  Zap
 } from 'lucide-react';
 
 const Index = () => {
@@ -82,8 +85,14 @@ const Index = () => {
     }
   ];
 
+  const stats = [
+    { value: "99.9%", label: "Disponibilidad", icon: Zap },
+    { value: "+50%", label: "Productividad", icon: TrendingUp },
+    { value: "24/7", label: "Soporte", icon: Globe },
+    { value: "100%", label: "Cloud", icon: Sparkles }
+  ];
+
   const handleLoginClick = () => {
-    // This will be handled by routing logic in App.tsx
     window.dispatchEvent(new CustomEvent('navigate-to-login'));
   };
 
@@ -134,6 +143,37 @@ const Index = () => {
           </motion.div>
         </motion.div>
 
+        {/* Stats Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.8 }}
+          className="mb-20"
+        >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            {stats.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.6 + index * 0.1 }}
+                whileHover={{ scale: 1.05 }}
+                className="text-center"
+              >
+                <Card className="hotel-card p-6 hover:shadow-floating hotel-transition">
+                  <CardContent className="p-0">
+                    <stat.icon className="w-6 h-6 text-primary mx-auto mb-2" />
+                    <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                      {stat.value}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
         {/* Features Grid */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -141,9 +181,12 @@ const Index = () => {
           transition={{ delay: 0.4, duration: 0.8 }}
           className="mb-20"
         >
-          <h2 className="text-3xl font-bold text-center mb-12 text-foreground">
+          <h2 className="text-3xl font-bold text-center mb-4 text-foreground">
             Módulos Principales
           </h2>
+          <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+            Todo lo que necesitas para gestionar tu hotel de manera eficiente en una sola plataforma
+          </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
@@ -174,11 +217,14 @@ const Index = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.8 }}
-          className="mb-16"
+          className="mb-20"
         >
-          <h2 className="text-3xl font-bold text-center mb-12 text-foreground">
+          <h2 className="text-3xl font-bold text-center mb-4 text-foreground">
             Beneficios Clave
           </h2>
+          <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+            Descubre cómo nuestra plataforma puede transformar las operaciones de tu hotel
+          </p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {benefits.map((benefit, index) => (
@@ -187,6 +233,7 @@ const Index = () => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 1 + index * 0.2 }}
+                whileHover={{ scale: 1.05 }}
                 className="text-center"
               >
                 <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
@@ -199,17 +246,50 @@ const Index = () => {
           </div>
         </motion.div>
 
-        {/* Database Initializer Section */}
+        {/* How It Works Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0, duration: 0.8 }}
-          className="mb-16"
+          className="mb-20"
         >
-          <h2 className="text-3xl font-bold text-center mb-8 text-foreground">
-            Configuración Inicial
+          <h2 className="text-3xl font-bold text-center mb-4 text-foreground">
+            ¿Cómo Funciona?
           </h2>
-          <DatabaseInitializer />
+          <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+            Empieza a usar el sistema en 3 simples pasos
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {[
+              { step: "1", title: "Inicia Sesión", description: "Accede con tus credenciales de usuario proporcionadas por tu administrador" },
+              { step: "2", title: "Explora los Módulos", description: "Navega por los diferentes módulos según tus permisos y rol asignado" },
+              { step: "3", title: "Gestiona tu Hotel", description: "Administra reservas, huéspedes, habitaciones y más desde un solo lugar" }
+            ].map((item, index) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 + index * 0.15 }}
+                className="relative"
+              >
+                <Card className="hotel-card p-6 text-center hover:shadow-floating hotel-transition h-full">
+                  <CardContent className="p-0">
+                    <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-lg">
+                      {item.step}
+                    </div>
+                    <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                  </CardContent>
+                </Card>
+                {index < 2 && (
+                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
+                    <ArrowRight className="w-6 h-6 text-muted-foreground/30" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
 
         {/* CTA Section */}
@@ -226,7 +306,7 @@ const Index = () => {
             Únete a los hoteles que ya optimizaron sus operaciones
           </p>
           
-          <div className="flex items-center justify-center space-x-6 mb-8">
+          <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
             <div className="flex items-center">
               <CheckCircle className="w-5 h-5 mr-2" />
               <span>Fácil implementación</span>
