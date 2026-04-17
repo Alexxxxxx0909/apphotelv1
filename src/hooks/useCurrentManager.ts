@@ -28,8 +28,12 @@ export const useCurrentManager = () => {
       }
 
       try {
+        let hoteles: string[] = [];
+        let managerDocId: string | null = null;
+        let managerRaw: any = {};
+
+        // 1) Intentar obtener documento en colección 'managers'
         const managersRef = collection(db, 'managers');
-        // Buscar por userId (más confiable) y como respaldo por email
         const qByUid = query(managersRef, where('userId', '==', user.id));
         const qByEmail = query(managersRef, where('email', '==', user.email));
         let querySnapshot = await getDocs(qByUid);
@@ -39,36 +43,59 @@ export const useCurrentManager = () => {
 
         if (!querySnapshot.empty) {
           const managerDoc = querySnapshot.docs[0];
-          const raw = managerDoc.data() as any;
-
-          // Hoteles desde el propio documento del gerente
-          let hoteles: string[] = Array.isArray(raw.hotelesAsignados) ? raw.hotelesAsignados : [];
-
-          // Si no hay hoteles en el doc del gerente, intentar desde colección 'hotels'
-          if (!hoteles.length) {
-            try {
-              const hotelsRef = collection(db, 'hotels');
-              // Intentar por managerId (id del doc) y como respaldo por userId del auth
-              const hotelsByManagerId = await getDocs(query(hotelsRef, where('managerId', '==', managerDoc.id)));
-              const hotelsByUserId = hoteles.length ? null : await getDocs(query(hotelsRef, where('managerUserId', '==', user.id)));
-              const hotelDocs = !hotelsByManagerId.empty ? hotelsByManagerId : hotelsByUserId;
-              if (hotelDocs && !hotelDocs.empty) {
-                hoteles = hotelDocs.docs.map(d => (d.data() as any).nombre || (d.data() as any).name || d.id);
-              }
-            } catch (e) {
-              // Si no existe la colección 'hotels' o falla la consulta, simplemente continuar
-            }
+          managerDocId = managerDoc.id;
+          managerRaw = managerDoc.data() as any;
+          if (Array.isArray(managerRaw.hotelesAsignados)) {
+            hoteles = managerRaw.hotelesAsignados;
           }
-
-          const managerData = {
-            id: managerDoc.id,
-            ...raw,
-            fechaCreacion: raw.fechaCreacion?.toDate() || new Date(),
-            hotelesAsignados: hoteles,
-          } as ManagerData;
-
-          setManager(managerData);
         }
+
+        // 2) Si no hay hoteles aún, buscar en colección 'hotels' por managerId == uid del usuario
+        if (!hoteles.length) {
+          try {
+            const hotelsRef = collection(db, 'hotels');
+            // Buscar por managerId (uid del auth) — es como UserForm asigna al gerente
+            const hotelsByUid = await getDocs(query(hotelsRef, where('managerId', '==', user.id)));
+            let hotelDocs = hotelsByUid;
+
+            // Respaldo: por managerId == id del documento del manager
+            if (hotelDocs.empty && managerDocId) {
+              hotelDocs = await getDocs(query(hotelsRef, where('managerId', '==', managerDocId)));
+            }
+            // Respaldo: por managerUserId
+            if (hotelDocs.empty) {
+              hotelDocs = await getDocs(query(hotelsRef, where('managerUserId', '==', user.id)));
+            }
+
+            if (!hotelDocs.empty) {
+              hoteles = hotelDocs.docs.map(d => {
+                const data = d.data() as any;
+                return data.nombre || data.name || d.id;
+              });
+            }
+          } catch (e) {
+            console.error('Error buscando hoteles del gerente:', e);
+          }
+        }
+
+        // 3) Respaldo final: usar user.hotel del contexto de auth si existe
+        if (!hoteles.length && user.hotel) {
+          hoteles = [user.hotel];
+        }
+
+        const managerData = {
+          id: managerDocId || user.id,
+          nombre: managerRaw.nombre || user.name,
+          email: managerRaw.email || user.email,
+          telefono: managerRaw.telefono || '',
+          companyId: managerRaw.companyId || '',
+          hotelesAsignados: hoteles,
+          fechaCreacion: managerRaw.fechaCreacion?.toDate() || new Date(),
+          estado: managerRaw.estado || 'activo',
+        } as ManagerData;
+
+        setManager(managerData);
+        console.log('[useCurrentManager] Hoteles asignados:', hoteles);
       } catch (error) {
         console.error('Error fetching manager data:', error);
       } finally {
