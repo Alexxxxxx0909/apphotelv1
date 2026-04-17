@@ -56,6 +56,7 @@ const CollaboratorsModule: React.FC = () => {
   } = useCollaborators();
   
   const { hotelesAsignados } = useCurrentManager();
+  const hotelGerente = hotelesAsignados[0] || '';
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -72,7 +73,7 @@ const CollaboratorsModule: React.FC = () => {
     email: '',
     telefono: '',
     cargo: '',
-    hotelAsignado: '',
+    hotelAsignado: hotelesAsignados[0] || '',
     modulosAsignados: [],
     password: generateRandomPassword()
   });
@@ -124,7 +125,7 @@ const CollaboratorsModule: React.FC = () => {
         email: '',
         telefono: '',
         cargo: '',
-        hotelAsignado: '',
+        hotelAsignado: hotelGerente,
         modulosAsignados: [],
         password: generateRandomPassword()
       });
@@ -364,19 +365,16 @@ const CollaboratorsModule: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="hotel">Hotel Asignado</Label>
-                      <Select 
-                        value={newCollaborator.hotelAsignado}
-                        onValueChange={(value) => setNewCollaborator(prev => ({ ...prev, hotelAsignado: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccione hotel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {hotelesAsignados.map(hotel => (
-                            <SelectItem key={hotel} value={hotel}>{hotel}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        id="hotel"
+                        value={hotelGerente || 'Sin hotel asignado'}
+                        readOnly
+                        disabled
+                        className="bg-muted cursor-not-allowed"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Se asigna automáticamente el hotel que gestiona
+                      </p>
                     </div>
                   </div>
                   
