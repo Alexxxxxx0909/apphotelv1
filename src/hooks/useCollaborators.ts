@@ -84,33 +84,85 @@ export const useCollaborators = () => {
   }, [toast]);
 
   const createCollaborator = async (data: CollaboratorFormData) => {
+    let secondaryApp: any = null;
     try {
       setLoading(true);
+
+      if (!data.email || !data.password) {
+        throw new Error('Email y contraseña son requeridos');
+      }
+
+      // 1) Crear usuario en Firebase Auth usando una app secundaria
+      //    para no cerrar la sesión del gerente actual.
+      const secondaryAppName = `secondary-${Date.now()}`;
+      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+      const secondaryDb = getFirestore(secondaryApp);
+
+      const userCredential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        data.email,
+        data.password
+      );
+      const newUid = userCredential.user.uid;
+
+      // 2) Crear documento en 'users/{uid}' para que AuthContext
+      //    reconozca su rol al iniciar sesión.
+      await setDoc(doc(secondaryDb, 'users', newUid), {
+        name: data.nombre,
+        email: data.email,
+        phone: data.telefono,
+        identificacion: data.documento,
+        role: 'colaborador',
+        hotel: data.hotelAsignado,
+        cargo: data.cargo,
+        permissions: data.modulosAsignados,
+        active: true,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      // 3) Crear documento en 'collaborators' para gestión interna
       const collaboratorData = {
         ...data,
-        rol: data.cargo.toLowerCase().replace(/\s+/g, '_'),
+        uid: newUid,
+        rol: 'colaborador',
         estado: 'activo' as const,
         fechaCreacion: Timestamp.now(),
         ultimoAcceso: null,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       };
-
       const docRef = await addDoc(collection(db, 'collaborators'), collaboratorData);
-      
+
+      // 4) Cerrar sesión secundaria y eliminar la app secundaria
+      try { await signOut(secondaryAuth); } catch {}
+      await deleteApp(secondaryApp);
+      secondaryApp = null;
+
       toast({
         title: "Colaborador creado",
-        description: `${data.nombre} ha sido registrado exitosamente`,
+        description: `${data.nombre} fue registrado. Ya puede iniciar sesión con su email y contraseña.`,
       });
-      
+
       return docRef.id;
     } catch (err: any) {
       setError(err.message);
+      const msg = err?.code === 'auth/email-already-in-use'
+        ? 'El email ya está registrado en el sistema'
+        : err?.code === 'auth/weak-password'
+          ? 'La contraseña es muy débil (mínimo 6 caracteres)'
+          : err?.code === 'auth/invalid-email'
+            ? 'El email no es válido'
+            : 'No se pudo crear el colaborador';
       toast({
         title: "Error",
-        description: "No se pudo crear el colaborador",
+        description: msg,
         variant: "destructive"
       });
+      if (secondaryApp) {
+        try { await deleteApp(secondaryApp); } catch {}
+      }
       throw err;
     } finally {
       setLoading(false);
