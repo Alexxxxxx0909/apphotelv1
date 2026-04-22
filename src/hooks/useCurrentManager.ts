@@ -10,6 +10,7 @@ export interface ManagerData {
   telefono: string;
   companyId: string;
   hotelesAsignados: string[];
+  hotelesAsignadosIds: string[];
   fechaCreacion: Date;
   ultimoAcceso?: Date;
   estado: 'activo' | 'inactivo';
@@ -29,6 +30,7 @@ export const useCurrentManager = () => {
 
       try {
         let hoteles: string[] = [];
+        let hotelIds: string[] = [];
         let managerDocId: string | null = null;
         let managerRaw: any = {};
 
@@ -68,6 +70,7 @@ export const useCurrentManager = () => {
             }
 
             if (!hotelDocs.empty) {
+              hotelIds = hotelDocs.docs.map(d => d.id);
               hoteles = hotelDocs.docs.map(d => {
                 const data = d.data() as any;
                 return data.nombre || data.name || d.id;
@@ -82,6 +85,9 @@ export const useCurrentManager = () => {
         if (!hoteles.length && user.hotel) {
           hoteles = [user.hotel];
         }
+        if (!hotelIds.length && user.hotel) {
+          hotelIds = [user.hotel];
+        }
 
         const managerData = {
           id: managerDocId || user.id,
@@ -90,6 +96,7 @@ export const useCurrentManager = () => {
           telefono: managerRaw.telefono || '',
           companyId: managerRaw.companyId || '',
           hotelesAsignados: hoteles,
+          hotelesAsignadosIds: hotelIds,
           fechaCreacion: managerRaw.fechaCreacion?.toDate() || new Date(),
           estado: managerRaw.estado || 'activo',
         } as ManagerData;
@@ -109,6 +116,7 @@ export const useCurrentManager = () => {
   return {
     manager,
     loading,
-    hotelesAsignados: manager?.hotelesAsignados || []
+    hotelesAsignados: manager?.hotelesAsignados || [],
+    hotelesAsignadosIds: manager?.hotelesAsignadosIds || []
   };
 };
