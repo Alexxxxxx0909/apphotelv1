@@ -14,6 +14,7 @@ interface User {
   email: string;
   role: string;
   hotel?: string;
+  permissions?: string[];
 }
 
 interface AuthContextType {
@@ -72,7 +73,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               name: userData.name,
               email: firebaseUser.email || '',
               role: roleName,
-              hotel: userData.hotel
+              hotel: userData.hotel,
+              permissions: Array.isArray(userData.permissions) ? userData.permissions : []
             };
             setUser(newUser);
             console.log('Usuario establecido con rol:', newUser.role);
