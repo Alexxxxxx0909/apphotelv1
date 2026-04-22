@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,8 +55,9 @@ const CollaboratorsModule: React.FC = () => {
     reassignHotel
   } = useCollaborators();
   
-  const { hotelesAsignados } = useCurrentManager();
+  const { hotelesAsignados, hotelesAsignadosIds } = useCurrentManager();
   const hotelGerente = hotelesAsignados[0] || '';
+  const hotelGerenteId = hotelesAsignadosIds[0] || '';
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -73,10 +74,20 @@ const CollaboratorsModule: React.FC = () => {
     email: '',
     telefono: '',
     cargo: '',
-    hotelAsignado: hotelesAsignados[0] || '',
+    hotelAsignado: hotelGerenteId,
     modulosAsignados: [],
     password: generateRandomPassword()
   });
+
+  useEffect(() => {
+    if (!hotelGerenteId) return;
+
+    setNewCollaborator((prev) =>
+      prev.hotelAsignado === hotelGerenteId
+        ? prev
+        : { ...prev, hotelAsignado: hotelGerenteId }
+    );
+  }, [hotelGerenteId]);
 
   function generateRandomPassword(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -125,7 +136,7 @@ const CollaboratorsModule: React.FC = () => {
         email: '',
         telefono: '',
         cargo: '',
-        hotelAsignado: hotelGerente,
+        hotelAsignado: hotelGerenteId,
         modulosAsignados: [],
         password: generateRandomPassword()
       });
