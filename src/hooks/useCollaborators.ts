@@ -17,6 +17,7 @@ import { initializeApp, getApp, getApps, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { db, firebaseConfig } from '@/config/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Collaborator {
@@ -51,7 +52,17 @@ export const useCollaborators = () => {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
   const { toast } = useToast();
+
+  const resolveAssignedHotel = (hotelFromForm?: string, currentHotel?: string) => {
+    if (user?.role === 'gerente' && user.hotel?.trim()) {
+      return user.hotel;
+    }
+
+    const candidates = [hotelFromForm, currentHotel, user?.hotel];
+    return candidates.find((hotelId) => typeof hotelId === 'string' && hotelId.trim().length > 0) || '';
+  };
 
   useEffect(() => {
     const q = query(
@@ -87,6 +98,7 @@ export const useCollaborators = () => {
     let secondaryApp: any = null;
     try {
       setLoading(true);
+      const assignedHotel = resolveAssignedHotel(data.hotelAsignado);
 
       if (!data.email || !data.password) {
         throw new Error('Email y contraseña son requeridos');
@@ -114,7 +126,7 @@ export const useCollaborators = () => {
         phone: data.telefono,
         identificacion: data.documento,
         role: 'colaborador',
-        hotel: data.hotelAsignado,
+        hotel: assignedHotel,
         cargo: data.cargo,
         permissions: data.modulosAsignados,
         active: true,
@@ -125,6 +137,7 @@ export const useCollaborators = () => {
       // 3) Crear documento en 'collaborators' para gestión interna
       const collaboratorData = {
         ...data,
+        hotelAsignado: assignedHotel,
         uid: newUid,
         rol: 'colaborador',
         estado: 'activo' as const,
@@ -172,19 +185,22 @@ export const useCollaborators = () => {
   const updateCollaborator = async (id: string, data: Partial<CollaboratorFormData> & { estado?: string }) => {
     try {
       setLoading(true);
+      const collab = collaborators.find(c => c.id === id) as any;
+      const effectiveHotel = resolveAssignedHotel(data.hotelAsignado, collab?.hotelAsignado);
+
       await updateDoc(doc(db, 'collaborators', id), {
         ...data,
+        ...(effectiveHotel ? { hotelAsignado: effectiveHotel } : {}),
         updatedAt: Timestamp.now()
       });
 
       // Sincronizar cambios relevantes con el documento users/{uid}
       // para que el dashboard del colaborador refleje permisos/hotel/estado en tiempo real.
-      const collab = collaborators.find(c => c.id === id) as any;
       const uid = collab?.uid;
       if (uid) {
         const userUpdate: any = { updatedAt: Timestamp.now() };
         if (data.modulosAsignados !== undefined) userUpdate.permissions = data.modulosAsignados;
-        if (data.hotelAsignado !== undefined) userUpdate.hotel = data.hotelAsignado;
+        if (effectiveHotel) userUpdate.hotel = effectiveHotel;
         if (data.nombre !== undefined) userUpdate.name = data.nombre;
         if (data.telefono !== undefined) userUpdate.phone = data.telefono;
         if (data.documento !== undefined) userUpdate.identificacion = data.documento;
