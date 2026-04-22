@@ -169,14 +169,39 @@ export const useCollaborators = () => {
     }
   };
 
-  const updateCollaborator = async (id: string, data: Partial<CollaboratorFormData>) => {
+  const updateCollaborator = async (id: string, data: Partial<CollaboratorFormData> & { estado?: string }) => {
     try {
       setLoading(true);
       await updateDoc(doc(db, 'collaborators', id), {
         ...data,
         updatedAt: Timestamp.now()
       });
-      
+
+      // Sincronizar cambios relevantes con el documento users/{uid}
+      // para que el dashboard del colaborador refleje permisos/hotel/estado en tiempo real.
+      const collab = collaborators.find(c => c.id === id) as any;
+      const uid = collab?.uid;
+      if (uid) {
+        const userUpdate: any = { updatedAt: Timestamp.now() };
+        if (data.modulosAsignados !== undefined) userUpdate.permissions = data.modulosAsignados;
+        if (data.hotelAsignado !== undefined) userUpdate.hotel = data.hotelAsignado;
+        if (data.nombre !== undefined) userUpdate.name = data.nombre;
+        if (data.telefono !== undefined) userUpdate.phone = data.telefono;
+        if (data.documento !== undefined) userUpdate.identificacion = data.documento;
+        if (data.cargo !== undefined) userUpdate.cargo = data.cargo;
+        if ((data as any).estado !== undefined) {
+          userUpdate.active = (data as any).estado === 'activo';
+        }
+
+        if (Object.keys(userUpdate).length > 1) {
+          try {
+            await updateDoc(doc(db, 'users', uid), userUpdate);
+          } catch (syncErr) {
+            console.warn('No se pudo sincronizar users/{uid}:', syncErr);
+          }
+        }
+      }
+
       toast({
         title: "Colaborador actualizado",
         description: "Los datos han sido guardados exitosamente",
