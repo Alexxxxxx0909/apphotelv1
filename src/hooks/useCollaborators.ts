@@ -6,13 +6,17 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
+  setDoc,
   onSnapshot,
   query,
   where,
   orderBy,
   Timestamp 
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { initializeApp, getApp, getApps, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { db, firebaseConfig } from '@/config/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Collaborator {
