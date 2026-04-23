@@ -123,8 +123,57 @@ const ProfileModule: React.FC = () => {
     toast.success('Información personal actualizada correctamente');
   };
 
-  const handleChangePassword = () => {
-    toast.success('Contraseña actualizada correctamente');
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Completa todos los campos de contraseña');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('La nueva contraseña y su confirmación no coinciden');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('La nueva contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error('La nueva contraseña debe ser diferente a la actual');
+      return;
+    }
+
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser || !firebaseUser.email) {
+      toast.error('No hay una sesión activa');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const credential = EmailAuthProvider.credential(firebaseUser.email, currentPassword);
+      await reauthenticateWithCredential(firebaseUser, credential);
+      await updatePassword(firebaseUser, newPassword);
+
+      toast.success('Contraseña actualizada correctamente');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      console.error('Error al cambiar contraseña:', error);
+      const code = error?.code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        toast.error('La contraseña actual es incorrecta');
+      } else if (code === 'auth/weak-password') {
+        toast.error('La nueva contraseña es muy débil');
+      } else if (code === 'auth/requires-recent-login') {
+        toast.error('Por seguridad, vuelve a iniciar sesión e intenta de nuevo');
+      } else if (code === 'auth/too-many-requests') {
+        toast.error('Demasiados intentos. Intenta más tarde');
+      } else {
+        toast.error('No se pudo actualizar la contraseña');
+      }
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleToggleNotification = (id: string, type: 'email' | 'sms' | 'system') => {
