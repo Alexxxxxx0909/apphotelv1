@@ -180,19 +180,16 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-hotel">Hotel Asignado</Label>
-                    <Select
-                      value={formData.hotelAsignado || ''}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, hotelAsignado: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione hotel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {hotelesAsignados.map(hotel => (
-                          <SelectItem key={hotel} value={hotel}>{hotel}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="edit-hotel"
+                      value={formData.hotelAsignado || 'Sin hotel asignado'}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      El hotel asignado no se puede modificar
+                    </p>
                   </div>
                 </div>
               </CardContent>
