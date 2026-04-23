@@ -35,6 +35,9 @@ interface ReservationData {
   paymentMethod: string;
   status: string;
   specialRequests: string;
+  depositEnabled: boolean;
+  depositType: 'percentage' | 'fixed';
+  depositValue: number;
 }
 
 const RegisterReservation: React.FC = () => {
