@@ -139,7 +139,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const uid = credential.user.uid;
+
+      // Verificar si la cuenta está activa antes de permitir el acceso.
+      try {
+        const userDocRef = doc(db, 'users', uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const data = userDocSnap.data();
+          if (data.active === false) {
+            await signOut(auth);
+            console.warn('Intento de inicio de sesión con cuenta inactiva.');
+            return false;
+          }
+
+          // Registrar último acceso en tiempo real.
+          const now = Timestamp.now();
+          try {
+            await updateDoc(userDocRef, { lastLogin: now });
+          } catch (e) {
+            console.warn('No se pudo actualizar lastLogin en users:', e);
+          }
+
+          // Sincronizar ultimoAcceso en collaborators (si existe).
+          try {
+            const collabsRef = collection(db, 'collaborators');
+            const q = query(collabsRef, where('uid', '==', uid));
+            const snap = await getDocs(q);
+            await Promise.all(
+              snap.docs.map((d) => updateDoc(d.ref, { ultimoAcceso: now }))
+            );
+          } catch (e) {
+            console.warn('No se pudo actualizar ultimoAcceso en collaborators:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo verificar el estado de la cuenta:', e);
+      }
+
       return true;
     } catch (error: any) {
       console.error('Error de autenticación:', error);
