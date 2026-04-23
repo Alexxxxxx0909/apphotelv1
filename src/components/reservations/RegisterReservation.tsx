@@ -65,7 +65,10 @@ const RegisterReservation: React.FC = () => {
     pricePerNight: 0,
     paymentMethod: '',
     status: 'pendiente',
-    specialRequests: ''
+    specialRequests: '',
+    depositEnabled: false,
+    depositType: 'percentage',
+    depositValue: 0
   });
 
   const [reservationNumber] = useState(() => 
