@@ -608,7 +608,7 @@ const RegisterReservation: React.FC = () => {
                       <>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-muted-foreground">Anticipo</span>
-                          <span className="font-semibold text-green-600">
+                          <span className="font-semibold text-primary">
                             -${(reservationData.depositType === 'percentage'
                               ? Math.round((totalPrice * reservationData.depositValue) / 100)
                               : reservationData.depositValue
