@@ -67,8 +67,10 @@ const ProfileModule: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [language, setLanguage] = useState('es');
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-
-  // Mock data - En producción vendría de la base de datos
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const loginHistory: LoginHistoryEntry[] = [
     {
       id: '1',
