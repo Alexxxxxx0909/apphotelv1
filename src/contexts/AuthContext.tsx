@@ -67,6 +67,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const userData = userDocSnap.data();
                 console.log('Datos del usuario desde Firestore:', userData);
 
+                // Si el colaborador fue desactivado/bloqueado, cerrar la sesión inmediatamente.
+                if (userData.active === false) {
+                  console.warn('Cuenta inactiva detectada, cerrando sesión.');
+                  try { await signOut(auth); } catch {}
+                  setUser(null);
+                  setLoading(false);
+                  return;
+                }
+
                 // Resolver nombre del rol
                 let roleName = userData.role;
                 try {
