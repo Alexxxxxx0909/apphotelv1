@@ -342,22 +342,41 @@ const ProfileModule: React.FC = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="current-password">Contraseña Actual</Label>
-                <Input id="current-password" type="password" />
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="new-password">Nueva Contraseña</Label>
-                <Input id="new-password" type="password" />
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground">Mínimo 6 caracteres</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
-                <Input id="confirm-password" type="password" />
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
               </div>
 
-              <Button onClick={handleChangePassword}>
+              <Button onClick={handleChangePassword} disabled={changingPassword}>
                 <Key className="h-4 w-4 mr-2" />
-                Cambiar Contraseña
+                {changingPassword ? 'Actualizando...' : 'Cambiar Contraseña'}
               </Button>
             </CardContent>
           </Card>
