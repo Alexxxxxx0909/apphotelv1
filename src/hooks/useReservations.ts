@@ -33,6 +33,10 @@ export interface Reservation {
   planId: string;
   paymentMethod: string;
   status: 'pendiente' | 'confirmada' | 'cancelada' | 'completada';
+  depositEnabled?: boolean;
+  depositType?: 'percentage' | 'fixed';
+  depositValue?: number;
+  depositAmount?: number;
   specialRequests?: string;
   fechaCreacion: Date;
   fechaActualizacion?: Date;
