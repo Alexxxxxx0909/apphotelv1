@@ -522,9 +522,75 @@ const RegisterReservation: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Anticipo */}
+                <div className="pt-4 border-t space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="depositEnabled"
+                      checked={reservationData.depositEnabled}
+                      onCheckedChange={(checked) => setReservationData(prev => ({
+                        ...prev,
+                        depositEnabled: checked === true
+                      }))}
+                    />
+                    <Label htmlFor="depositEnabled" className="flex items-center space-x-2 cursor-pointer">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Aplicar anticipo</span>
+                    </Label>
+                  </div>
+
+                  {reservationData.depositEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
+                      <div>
+                        <Label>Tipo de anticipo</Label>
+                        <Select
+                          value={reservationData.depositType}
+                          onValueChange={(value: 'percentage' | 'fixed') =>
+                            setReservationData(prev => ({ ...prev, depositType: value, depositValue: 0 }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percentage">Porcentaje (%)</SelectItem>
+                            <SelectItem value="fixed">Monto fijo ($)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="depositValue">
+                          {reservationData.depositType === 'percentage' ? 'Porcentaje' : 'Monto'}
+                        </Label>
+                        <Input
+                          id="depositValue"
+                          type="number"
+                          min="0"
+                          max={reservationData.depositType === 'percentage' ? 100 : undefined}
+                          value={reservationData.depositValue || ''}
+                          onChange={(e) => setReservationData(prev => ({
+                            ...prev,
+                            depositValue: parseFloat(e.target.value) || 0
+                          }))}
+                          placeholder={reservationData.depositType === 'percentage' ? '0 - 100' : '0'}
+                        />
+                      </div>
+                      <div>
+                        <Label>Anticipo calculado</Label>
+                        <div className="h-10 flex items-center px-3 rounded-md bg-muted font-semibold text-primary">
+                          ${(reservationData.depositType === 'percentage'
+                            ? Math.round((totalPrice * (reservationData.depositValue || 0)) / 100)
+                            : (reservationData.depositValue || 0)
+                          ).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Precio Total */}
                 {totalPrice > 0 && (
-                  <div className="pt-4 border-t">
+                  <div className="pt-4 border-t space-y-2">
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-sm text-muted-foreground">Precio Total</p>
@@ -538,6 +604,28 @@ const RegisterReservation: React.FC = () => {
                         ${totalPrice.toLocaleString()}
                       </p>
                     </div>
+                    {reservationData.depositEnabled && reservationData.depositValue > 0 && (
+                      <>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">Anticipo</span>
+                          <span className="font-semibold text-green-600">
+                            -${(reservationData.depositType === 'percentage'
+                              ? Math.round((totalPrice * reservationData.depositValue) / 100)
+                              : reservationData.depositValue
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-sm font-medium">Saldo pendiente</span>
+                          <span className="text-lg font-bold">
+                            ${Math.max(0, totalPrice - (reservationData.depositType === 'percentage'
+                              ? Math.round((totalPrice * reservationData.depositValue) / 100)
+                              : reservationData.depositValue
+                            )).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
