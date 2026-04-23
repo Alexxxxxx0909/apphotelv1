@@ -211,21 +211,7 @@ const RegisterReservation: React.FC = () => {
         depositValue: reservationData.depositValue || 0,
         depositAmount
       });
-        checkOut: reservationData.checkOut!,
-        adults: reservationData.adults,
-        children: reservationData.children,
-        roomType: selectedType?.nombre || '',
-        roomTypeId: reservationData.roomTypeId,
-        roomNumber: selectedRoom?.numero || '',
-        roomId: reservationData.roomId,
-        pricePerNight: reservationData.pricePerNight + (selectedPlan?.precioAdicional || 0),
-        totalPrice,
-        plan: selectedPlan?.nombre || '',
-        planId: reservationData.planId,
-        paymentMethod: reservationData.paymentMethod,
-        status: reservationData.status as any,
-        specialRequests: reservationData.specialRequests
-      });
+
 
       toast({
         title: "Reserva Registrada",
