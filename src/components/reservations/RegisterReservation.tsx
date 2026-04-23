@@ -179,6 +179,12 @@ const RegisterReservation: React.FC = () => {
       const selectedRoom = rooms.find(r => r.id === reservationData.roomId);
       const selectedPlan = plans.find(p => p.id === reservationData.planId);
 
+      const depositAmount = reservationData.depositEnabled
+        ? reservationData.depositType === 'percentage'
+          ? Math.round((totalPrice * (reservationData.depositValue || 0)) / 100)
+          : reservationData.depositValue || 0
+        : 0;
+
       await addReservation({
         hotelId,
         reservationNumber,
@@ -186,6 +192,25 @@ const RegisterReservation: React.FC = () => {
         guestEmail: reservationData.guestEmail,
         guestPhone: reservationData.guestPhone,
         checkIn: reservationData.checkIn!,
+        checkOut: reservationData.checkOut!,
+        adults: reservationData.adults,
+        children: reservationData.children,
+        roomType: selectedType?.nombre || '',
+        roomTypeId: reservationData.roomTypeId,
+        roomNumber: selectedRoom?.numero || '',
+        roomId: reservationData.roomId,
+        pricePerNight: reservationData.pricePerNight + (selectedPlan?.precioAdicional || 0),
+        totalPrice,
+        plan: selectedPlan?.nombre || '',
+        planId: reservationData.planId,
+        paymentMethod: reservationData.paymentMethod,
+        status: reservationData.status as any,
+        specialRequests: reservationData.specialRequests,
+        depositEnabled: reservationData.depositEnabled,
+        depositType: reservationData.depositType,
+        depositValue: reservationData.depositValue || 0,
+        depositAmount
+      });
         checkOut: reservationData.checkOut!,
         adults: reservationData.adults,
         children: reservationData.children,
