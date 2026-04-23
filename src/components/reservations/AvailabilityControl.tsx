@@ -239,7 +239,6 @@ const AvailabilityControl: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
 
       {/* Leyenda de Estados */}
       <Card>
