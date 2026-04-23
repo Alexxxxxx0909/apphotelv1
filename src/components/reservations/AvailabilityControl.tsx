@@ -142,70 +142,46 @@ const AvailabilityControl: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendario */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CalendarIcon className="h-5 w-5" />
-              <span>Fecha</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              className="rounded-md border"
-            />
-            <div className="mt-4 space-y-2">
-              <div className="text-sm font-medium">
-                {format(selectedDate, "EEEE, d MMMM yyyy", { locale: es })}
-              </div>
+      {/* Panel de Habitaciones */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <CardTitle>Estado de Habitaciones</CardTitle>
+              <CardDescription>
+                Control en tiempo real - {format(selectedDate, "EEEE, d 'de' MMMM yyyy", { locale: es })}
+              </CardDescription>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Panel de Habitaciones */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Estado de Habitaciones</CardTitle>
-                <CardDescription>
-                  Control en tiempo real - {format(selectedDate, "d MMM yyyy", { locale: es })}
-                </CardDescription>
-              </div>
-              <div className="flex space-x-4">
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Filtrar por estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="disponible">Disponibles</SelectItem>
-                    <SelectItem value="ocupada">Ocupadas</SelectItem>
-                    <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
-                    <SelectItem value="limpieza">Limpieza</SelectItem>
-                    <SelectItem value="fuera_servicio">Fuera de Servicio</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterFloor} onValueChange={setFilterFloor}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Piso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {uniqueFloors.map(floor => (
-                      <SelectItem key={floor} value={floor.toString()}>
-                        Piso {floor}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filtrar por estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="disponible">Disponibles</SelectItem>
+                  <SelectItem value="ocupada">Ocupadas</SelectItem>
+                  <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                  <SelectItem value="limpieza">Limpieza</SelectItem>
+                  <SelectItem value="fuera_servicio">Fuera de Servicio</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterFloor} onValueChange={setFilterFloor}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Piso" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {uniqueFloors.map(floor => (
+                    <SelectItem key={floor} value={floor.toString()}>
+                      Piso {floor}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardHeader>
+          </div>
+        </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredRooms.length === 0 ? (
