@@ -190,7 +190,13 @@ const CollaboratorsModule: React.FC = () => {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Nunca';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('es-CO');
+    return date.toLocaleString('es-CO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (error) {

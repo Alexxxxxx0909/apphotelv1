@@ -28,12 +28,20 @@ const LoginPage: React.FC = () => {
           description: "Credenciales incorrectas. Intente nuevamente.",
         });
       }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Ha ocurrido un error inesperado.",
-      });
+    } catch (error: any) {
+      if (error?.code === 'auth/account-disabled') {
+        toast({
+          variant: "destructive",
+          title: "Cuenta inactiva",
+          description: "Su cuenta está inactiva o bloqueada. Contacte a su gerente.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Ha ocurrido un error inesperado.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }

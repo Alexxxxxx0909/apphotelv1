@@ -35,7 +35,13 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<CollaboratorFormData>>({});
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const { hotelesAsignados } = useCurrentManager();
+  const { hotelesAsignados, hotelesAsignadosIds } = useCurrentManager();
+
+  const hotelDisplayName = React.useMemo(() => {
+    const idx = hotelesAsignadosIds.findIndex((id) => id === formData.hotelAsignado);
+    if (idx >= 0 && hotelesAsignados[idx]) return hotelesAsignados[idx];
+    return formData.hotelAsignado || 'Sin hotel asignado';
+  }, [formData.hotelAsignado, hotelesAsignados, hotelesAsignadosIds]);
 
   useEffect(() => {
     if (collaborator) {
@@ -180,19 +186,16 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-hotel">Hotel Asignado</Label>
-                    <Select
-                      value={formData.hotelAsignado || ''}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, hotelAsignado: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione hotel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {hotelesAsignados.map(hotel => (
-                          <SelectItem key={hotel} value={hotel}>{hotel}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="edit-hotel"
+                      value={hotelDisplayName}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      El hotel asignado no se puede modificar
+                    </p>
                   </div>
                 </div>
               </CardContent>
