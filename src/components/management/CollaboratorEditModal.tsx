@@ -35,7 +35,13 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<CollaboratorFormData>>({});
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const { hotelesAsignados } = useCurrentManager();
+  const { hotelesAsignados, hotelesAsignadosIds } = useCurrentManager();
+
+  const hotelDisplayName = React.useMemo(() => {
+    const idx = hotelesAsignadosIds.findIndex((id) => id === formData.hotelAsignado);
+    if (idx >= 0 && hotelesAsignados[idx]) return hotelesAsignados[idx];
+    return formData.hotelAsignado || 'Sin hotel asignado';
+  }, [formData.hotelAsignado, hotelesAsignados, hotelesAsignadosIds]);
 
   useEffect(() => {
     if (collaborator) {
