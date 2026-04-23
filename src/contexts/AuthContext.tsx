@@ -151,7 +151,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (data.active === false) {
             await signOut(auth);
             console.warn('Intento de inicio de sesión con cuenta inactiva.');
-            return false;
+            const err: any = new Error('Cuenta inactiva. Contacte a su gerente.');
+            err.code = 'auth/account-disabled';
+            throw err;
           }
 
           // Registrar último acceso en tiempo real.
