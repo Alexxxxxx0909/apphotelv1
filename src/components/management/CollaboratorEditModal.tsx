@@ -188,7 +188,7 @@ const CollaboratorEditModal: React.FC<CollaboratorEditModalProps> = ({
                     <Label htmlFor="edit-hotel">Hotel Asignado</Label>
                     <Input
                       id="edit-hotel"
-                      value={formData.hotelAsignado || 'Sin hotel asignado'}
+                      value={hotelDisplayName}
                       readOnly
                       disabled
                       className="bg-muted cursor-not-allowed"
