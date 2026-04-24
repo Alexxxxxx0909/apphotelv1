@@ -1,90 +1,277 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Plus, 
-  Search, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  DollarSign,
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Plus,
+  Search,
+  Clock,
+  CheckCircle2,
+  XCircle,
   Users,
   BedDouble,
-  Coffee
+  Coffee,
+  Pencil,
+  Trash2,
+  Minus,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOrders, Order, OrderItem, OrderStatus, OrderType } from '@/hooks/useOrders';
+import { useMenuItems } from '@/hooks/useMenuItems';
+import { useToast } from '@/hooks/use-toast';
 
-interface Order {
-  id: string;
-  numeroOrden: string;
-  fechaHora: Date;
-  estado: 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado';
-  tipo: 'restaurante' | 'bar' | 'cafeteria' | 'room-service';
-  mesa?: string;
-  habitacion?: string;
-  mesero: string;
+interface FormState {
+  tipo: OrderType;
+  ubicacion: string;
   cliente: string;
+  mesero: string;
+  observaciones: string;
+  estado: OrderStatus;
   items: OrderItem[];
-  subtotal: number;
-  total: number;
-  observaciones?: string;
 }
 
-interface OrderItem {
-  id: string;
-  nombre: string;
-  precio: number;
-  cantidad: number;
-  observaciones?: string;
-}
+const emptyForm: FormState = {
+  tipo: 'restaurante',
+  ubicacion: '',
+  cliente: '',
+  mesero: '',
+  observaciones: '',
+  estado: 'pendiente',
+  items: [],
+};
 
 const OrdersConsumption: React.FC = () => {
+  const { user } = useAuth();
+  const hotelId = user?.hotel;
+  const { toast } = useToast();
+  const { orders, loading, addOrder, updateOrder, deleteOrder } = useOrders(hotelId);
+  const { menuItems } = useMenuItems(hotelId);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterType, setFilterType] = useState('todos');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [selectedMenuId, setSelectedMenuId] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Mock data
-  const [orders] = useState<Order[]>([
-    {
-      id: '1',
-      numeroOrden: 'ORD-2024-001',
-      fechaHora: new Date(),
-      estado: 'preparando',
-      tipo: 'restaurante',
-      mesa: 'Mesa 12',
-      mesero: 'Carlos Rodríguez',
-      cliente: 'Juan Pérez',
-      items: [
-        { id: '1', nombre: 'Filete Premium', precio: 45000, cantidad: 2 },
-        { id: '2', nombre: 'Vino Tinto Copa', precio: 12000, cantidad: 2 }
-      ],
-      subtotal: 114000,
-      total: 114000,
-      observaciones: 'Término medio, sin sal'
-    },
-    {
-      id: '2',
-      numeroOrden: 'ORD-2024-002',
-      fechaHora: new Date(Date.now() - 30 * 60 * 1000),
-      estado: 'pendiente',
-      tipo: 'room-service',
-      habitacion: '205',
-      mesero: 'María González',
-      cliente: 'Ana Silva - Habitación 205',
-      items: [
-        { id: '3', nombre: 'Desayuno Continental', precio: 25000, cantidad: 1 },
-        { id: '4', nombre: 'Jugo de Naranja', precio: 8000, cantidad: 2 }
-      ],
-      subtotal: 41000,
-      total: 41000
+  const activeMenuItems = useMemo(
+    () => menuItems.filter((m) => m.activo !== false),
+    [menuItems]
+  );
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const matchesSearch =
+        !searchTerm ||
+        o.numeroOrden.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.ubicacion.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = filterStatus === 'todos' || o.estado === filterStatus;
+      const matchesType = filterType === 'todos' || o.tipo === filterType;
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [orders, searchTerm, filterStatus, filterType]);
+
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayOrders = orders.filter((o) => o.fechaHora >= today);
+    return {
+      pendientes: orders.filter((o) => o.estado === 'pendiente').length,
+      preparando: orders.filter((o) => o.estado === 'preparando').length,
+      entregadasHoy: todayOrders.filter((o) => o.estado === 'entregado').length,
+      ventasHoy: todayOrders
+        .filter((o) => o.estado !== 'cancelado')
+        .reduce((acc, o) => acc + (o.total || 0), 0),
+    };
+  }, [orders]);
+
+  const totals = useMemo(() => {
+    const subtotal = form.items.reduce((acc, it) => acc + it.precio * it.cantidad, 0);
+    return { subtotal, total: subtotal };
+  }, [form.items]);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setSelectedMenuId('');
+    setEditingOrder(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (order: Order) => {
+    setEditingOrder(order);
+    setForm({
+      tipo: order.tipo,
+      ubicacion: order.ubicacion,
+      cliente: order.cliente,
+      mesero: order.mesero,
+      observaciones: order.observaciones || '',
+      estado: order.estado,
+      items: order.items.map((i) => ({ ...i })),
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleAddItem = () => {
+    if (!selectedMenuId) return;
+    const menu = activeMenuItems.find((m) => m.id === selectedMenuId);
+    if (!menu) return;
+    setForm((prev) => {
+      const existing = prev.items.find((i) => i.menuItemId === menu.id);
+      if (existing) {
+        return {
+          ...prev,
+          items: prev.items.map((i) =>
+            i.menuItemId === menu.id ? { ...i, cantidad: i.cantidad + 1 } : i
+          ),
+        };
+      }
+      return {
+        ...prev,
+        items: [
+          ...prev.items,
+          {
+            menuItemId: menu.id,
+            nombre: menu.nombre,
+            precio: menu.precio,
+            cantidad: 1,
+          },
+        ],
+      };
+    });
+    setSelectedMenuId('');
+  };
+
+  const handleQty = (menuItemId: string, delta: number) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items
+        .map((i) =>
+          i.menuItemId === menuItemId ? { ...i, cantidad: i.cantidad + delta } : i
+        )
+        .filter((i) => i.cantidad > 0),
+    }));
+  };
+
+  const handleRemoveItem = (menuItemId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((i) => i.menuItemId !== menuItemId),
+    }));
+  };
+
+  const handleSubmit = async () => {
+    if (!hotelId) {
+      toast({ title: 'Error', description: 'No hay hotel asignado', variant: 'destructive' });
+      return;
     }
-  ]);
+    if (!form.cliente.trim() || !form.mesero.trim() || !form.ubicacion.trim()) {
+      toast({
+        title: 'Campos requeridos',
+        description: 'Completa cliente, mesero y mesa/habitación',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (form.items.length === 0) {
+      toast({
+        title: 'Sin productos',
+        description: 'Agrega al menos un producto del menú',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        tipo: form.tipo,
+        ubicacion: form.ubicacion.trim(),
+        cliente: form.cliente.trim(),
+        mesero: form.mesero.trim(),
+        observaciones: form.observaciones.trim(),
+        estado: form.estado,
+        items: form.items,
+        subtotal: totals.subtotal,
+        total: totals.total,
+        hotelId,
+      };
+
+      if (editingOrder) {
+        await updateOrder(editingOrder.id, payload);
+        toast({ title: 'Orden actualizada', description: 'Los cambios se guardaron' });
+      } else {
+        await addOrder(payload);
+        toast({ title: 'Orden creada', description: 'La orden se registró correctamente' });
+      }
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'No se pudo guardar la orden',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (order: Order, estado: OrderStatus) => {
+    try {
+      await updateOrder(order.id, { estado });
+      toast({ title: 'Estado actualizado', description: `Orden ${order.numeroOrden}: ${estado}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingOrder) return;
+    try {
+      await deleteOrder(deletingOrder.id);
+      toast({ title: 'Orden eliminada', description: deletingOrder.numeroOrden });
+      setDeletingOrder(null);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,11 +293,9 @@ const OrdersConsumption: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pendiente':
-        return <Clock className="h-4 w-4" />;
       case 'preparando':
         return <Clock className="h-4 w-4" />;
       case 'listo':
-        return <CheckCircle2 className="h-4 w-4" />;
       case 'entregado':
         return <CheckCircle2 className="h-4 w-4" />;
       case 'cancelado':
@@ -125,7 +310,6 @@ const OrdersConsumption: React.FC = () => {
       case 'restaurante':
         return <Users className="h-4 w-4" />;
       case 'bar':
-        return <Coffee className="h-4 w-4" />;
       case 'cafeteria':
         return <Coffee className="h-4 w-4" />;
       case 'room-service':
@@ -135,20 +319,15 @@ const OrdersConsumption: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount);
-  };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('es-CO', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <motion.div
@@ -162,7 +341,7 @@ const OrdersConsumption: React.FC = () => {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Buscar órdenes..."
+              placeholder="Buscar por número, cliente o ubicación..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -194,159 +373,209 @@ const OrdersConsumption: React.FC = () => {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="w-full lg:w-auto">
+        <Button onClick={openCreate} className="w-full lg:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nueva Orden
         </Button>
       </div>
 
       {/* Orders Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {orders.map((order) => (
-          <motion.div
-            key={order.id}
-            whileHover={{ scale: 1.02 }}
-            className="group"
-          >
-            <Card className="h-full hover:shadow-hotel transition-all duration-300">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CardTitle className="text-lg">{order.numeroOrden}</CardTitle>
-                      <Badge className={`${getStatusColor(order.estado)} text-white`}>
-                        {getStatusIcon(order.estado)}
-                        <span className="ml-1 capitalize">{order.estado}</span>
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {getTypeIcon(order.tipo)}
-                      <span className="capitalize">{order.tipo}</span>
-                      <span>•</span>
-                      <span>{formatTime(order.fechaHora)}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Cliente:</span>
-                    <span className="font-medium">{order.cliente}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Mesero:</span>
-                    <span>{order.mesero}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {order.tipo === 'room-service' ? 'Habitación:' : 'Mesa:'}
-                    </span>
-                    <span>{order.habitacion || order.mesa}</span>
-                  </div>
-                </div>
-
-                <div className="border-t pt-3">
-                  <div className="space-y-1">
-                    {order.items.map((item, index) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span>{item.cantidad}x {item.nombre}</span>
-                        <span>{formatCurrency(item.precio * item.cantidad)}</span>
+      {loading ? (
+        <div className="text-center py-12 text-muted-foreground">Cargando órdenes...</div>
+      ) : filteredOrders.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            No hay órdenes registradas. Haz clic en "Nueva Orden" para crear la primera.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredOrders.map((order) => (
+            <motion.div key={order.id} whileHover={{ scale: 1.02 }} className="group">
+              <Card className="h-full hover:shadow-hotel transition-all duration-300">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <CardTitle className="text-lg">{order.numeroOrden}</CardTitle>
+                        <Badge className={`${getStatusColor(order.estado)} text-white`}>
+                          {getStatusIcon(order.estado)}
+                          <span className="ml-1 capitalize">{order.estado}</span>
+                        </Badge>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {getTypeIcon(order.tipo)}
+                        <span className="capitalize">{order.tipo}</span>
+                        <span>•</span>
+                        <span>{formatTime(order.fechaHora)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => openEdit(order)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeletingOrder(order)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  
-                  <div className="border-t mt-2 pt-2 flex justify-between font-medium">
-                    <span>Total:</span>
-                    <span className="text-primary">{formatCurrency(order.total)}</span>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Cliente:</span>
+                      <span className="font-medium">{order.cliente}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Mesero:</span>
+                      <span>{order.mesero}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {order.tipo === 'room-service' ? 'Habitación:' : 'Mesa:'}
+                      </span>
+                      <span>{order.ubicacion}</span>
+                    </div>
                   </div>
-                </div>
 
-                {order.observaciones && (
-                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                    <strong>Observaciones:</strong> {order.observaciones}
+                  <div className="border-t pt-3">
+                    <div className="space-y-1">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span>
+                            {item.cantidad}x {item.nombre}
+                          </span>
+                          <span>{formatCurrency(item.precio * item.cantidad)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t mt-2 pt-2 flex justify-between font-medium">
+                      <span>Total:</span>
+                      <span className="text-primary">{formatCurrency(order.total)}</span>
+                    </div>
                   </div>
-                )}
 
-                <div className="flex gap-2 pt-2">
-                  {order.estado === 'pendiente' && (
-                    <Button size="sm" className="flex-1">
-                      Iniciar Preparación
-                    </Button>
+                  {order.observaciones && (
+                    <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                      <strong>Observaciones:</strong> {order.observaciones}
+                    </div>
                   )}
-                  {order.estado === 'preparando' && (
-                    <Button size="sm" variant="outline" className="flex-1">
-                      Marcar Listo
-                    </Button>
-                  )}
-                  {order.estado === 'listo' && (
-                    <Button size="sm" variant="default" className="flex-1">
-                      Entregar
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline">
-                    Ver Detalles
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+
+                  <div className="flex gap-2 pt-2">
+                    {order.estado === 'pendiente' && (
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleStatusChange(order, 'preparando')}
+                      >
+                        Iniciar Preparación
+                      </Button>
+                    )}
+                    {order.estado === 'preparando' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleStatusChange(order, 'listo')}
+                      >
+                        Marcar Listo
+                      </Button>
+                    )}
+                    {order.estado === 'listo' && (
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleStatusChange(order, 'entregado')}
+                      >
+                        Entregar
+                      </Button>
+                    )}
+                    {(order.estado === 'pendiente' || order.estado === 'preparando') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleStatusChange(order, 'cancelado')}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">8</div>
-              <div className="text-sm text-muted-foreground">Órdenes Pendientes</div>
-            </div>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-yellow-600">{stats.pendientes}</div>
+            <div className="text-sm text-muted-foreground">Órdenes Pendientes</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">5</div>
-              <div className="text-sm text-muted-foreground">En Preparación</div>
-            </div>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats.preparando}</div>
+            <div className="text-sm text-muted-foreground">En Preparación</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">12</div>
-              <div className="text-sm text-muted-foreground">Entregadas Hoy</div>
-            </div>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-green-600">{stats.entregadasHoy}</div>
+            <div className="text-sm text-muted-foreground">Entregadas Hoy</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">$456,000</div>
-              <div className="text-sm text-muted-foreground">Ventas del Día</div>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(stats.ventasHoy)}
             </div>
+            <div className="text-sm text-muted-foreground">Ventas del Día</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Create Order Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* Create/Edit Order Dialog */}
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nueva Orden</DialogTitle>
+            <DialogTitle>{editingOrder ? 'Editar Orden' : 'Nueva Orden'}</DialogTitle>
             <DialogDescription>
-              Registra una nueva orden de consumo
+              {editingOrder
+                ? `Modifica los datos de ${editingOrder.numeroOrden}`
+                : 'Registra una nueva orden de consumo'}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="tipo">Tipo de Servicio</Label>
-                <Select>
+                <Label>Tipo de Servicio</Label>
+                <Select
+                  value={form.tipo}
+                  onValueChange={(v: OrderType) => setForm({ ...form, tipo: v })}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="restaurante">Restaurante</SelectItem>
@@ -356,59 +585,202 @@ const OrdersConsumption: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
-                <Label htmlFor="cliente">Cliente</Label>
+                <Label htmlFor="cliente">Cliente *</Label>
                 <Input
                   id="cliente"
                   placeholder="Nombre del cliente"
+                  value={form.cliente}
+                  onChange={(e) => setForm({ ...form, cliente: e.target.value })}
                 />
               </div>
-              
+
               <div>
-                <Label htmlFor="mesero">Mesero Asignado</Label>
-                <Select>
+                <Label htmlFor="mesero">Mesero / Responsable *</Label>
+                <Input
+                  id="mesero"
+                  placeholder="Nombre del mesero"
+                  value={form.mesero}
+                  onChange={(e) => setForm({ ...form, mesero: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>Estado</Label>
+                <Select
+                  value={form.estado}
+                  onValueChange={(v: OrderStatus) => setForm({ ...form, estado: v })}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar mesero" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="carlos">Carlos Rodríguez</SelectItem>
-                    <SelectItem value="maria">María González</SelectItem>
-                    <SelectItem value="luis">Luis Martínez</SelectItem>
+                    <SelectItem value="pendiente">Pendiente</SelectItem>
+                    <SelectItem value="preparando">Preparando</SelectItem>
+                    <SelectItem value="listo">Listo</SelectItem>
+                    <SelectItem value="entregado">Entregado</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <div>
-                <Label htmlFor="mesa">Mesa/Habitación</Label>
+                <Label htmlFor="ubicacion">
+                  {form.tipo === 'room-service' ? 'Habitación *' : 'Mesa / Ubicación *'}
+                </Label>
                 <Input
-                  id="mesa"
-                  placeholder="Ej: Mesa 12 o Habitación 205"
+                  id="ubicacion"
+                  placeholder={
+                    form.tipo === 'room-service' ? 'Ej: Habitación 205' : 'Ej: Mesa 12'
+                  }
+                  value={form.ubicacion}
+                  onChange={(e) => setForm({ ...form, ubicacion: e.target.value })}
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="observaciones">Observaciones</Label>
-                <Input
+                <Textarea
                   id="observaciones"
                   placeholder="Instrucciones especiales"
+                  value={form.observaciones}
+                  onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
+                  rows={3}
                 />
               </div>
             </div>
           </div>
-          
-          <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+
+          {/* Items selector */}
+          <div className="space-y-3 border-t pt-4">
+            <Label>Productos del Menú *</Label>
+            <div className="flex gap-2">
+              <Select value={selectedMenuId} onValueChange={setSelectedMenuId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Seleccionar plato o bebida del menú" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeMenuItems.length === 0 ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">
+                      No hay productos en el menú. Crea menús en "Gestión de Menús".
+                    </div>
+                  ) : (
+                    activeMenuItems.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.nombre} — {formatCurrency(m.precio)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <Button type="button" onClick={handleAddItem} disabled={!selectedMenuId}>
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar
+              </Button>
+            </div>
+
+            {form.items.length > 0 && (
+              <div className="border rounded-md divide-y">
+                {form.items.map((item) => (
+                  <div
+                    key={item.menuItemId}
+                    className="flex items-center justify-between p-3 gap-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{item.nombre}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatCurrency(item.precio)} c/u
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-7 w-7"
+                        onClick={() => handleQty(item.menuItemId, -1)}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-8 text-center font-medium">{item.cantidad}</span>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-7 w-7"
+                        onClick={() => handleQty(item.menuItemId, 1)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="w-24 text-right font-medium">
+                      {formatCurrency(item.precio * item.cantidad)}
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => handleRemoveItem(item.menuItemId)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex justify-between p-3 bg-muted/50 font-semibold">
+                  <span>Total</span>
+                  <span className="text-primary">{formatCurrency(totals.total)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDialogOpen(false);
+                resetForm();
+              }}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
-            <Button onClick={() => setIsDialogOpen(false)} className="flex-1">
-              Crear Orden
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting
+                ? 'Guardando...'
+                : editingOrder
+                ? 'Guardar Cambios'
+                : 'Crear Orden'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={!!deletingOrder}
+        onOpenChange={(open) => !open && setDeletingOrder(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar orden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará la orden{' '}
+              <strong>{deletingOrder?.numeroOrden}</strong> permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 };
