@@ -105,7 +105,7 @@ const OrdersConsumption: React.FC = () => {
   const { user } = useAuth();
   const hotelId = user?.hotel;
   const { toast } = useToast();
-  const { orders, loading, addOrder, updateOrder, deleteOrder } = useOrders(hotelId);
+  const { orders, loading, addOrder, updateOrder, deleteOrder, generateOrderNumber } = useOrders(hotelId);
   const { menuItems } = useMenuItems(hotelId);
   const { reservations } = useReservations(hotelId);
   // hook con reservationId opcional - lo usamos solo para crear consumos puntuales
