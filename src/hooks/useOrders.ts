@@ -32,6 +32,9 @@ export interface Order {
   ubicacion: string; // mesa o habitación (texto libre)
   mesero: string;
   cliente: string;
+  reservationId?: string; // huésped asociado (para facturación)
+  pagado?: boolean; // marcado como pagado en sitio
+  consumptionId?: string; // id del consumo creado para checkout
   items: OrderItem[];
   subtotal: number;
   total: number;
