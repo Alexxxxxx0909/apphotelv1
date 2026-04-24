@@ -316,7 +316,9 @@ const OrdersConsumption: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const numeroOrden = editingOrder?.numeroOrden || generateOrderNumber();
       const basePayload = {
+        numeroOrden,
         tipo: form.tipo,
         ubicacion: form.ubicacion.trim(),
         cliente: form.cliente.trim(),
