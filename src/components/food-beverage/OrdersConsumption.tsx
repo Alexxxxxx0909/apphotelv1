@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   Plus,
   Search,
   Clock,
@@ -43,19 +57,27 @@ import {
   Pencil,
   Trash2,
   Minus,
+  ChevronsUpDown,
+  Check,
+  DollarSign,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrders, Order, OrderItem, OrderStatus, OrderType } from '@/hooks/useOrders';
 import { useMenuItems } from '@/hooks/useMenuItems';
+import { useReservations } from '@/hooks/useReservations';
+import { useConsumptions } from '@/hooks/useConsumptions';
 import { useToast } from '@/hooks/use-toast';
 
 interface FormState {
   tipo: OrderType;
   ubicacion: string;
   cliente: string;
+  reservationId: string;
   mesero: string;
   observaciones: string;
   estado: OrderStatus;
+  pagado: boolean;
   items: OrderItem[];
 }
 
@@ -63,18 +85,31 @@ const emptyForm: FormState = {
   tipo: 'restaurante',
   ubicacion: '',
   cliente: '',
+  reservationId: '',
   mesero: '',
   observaciones: '',
   estado: 'pendiente',
+  pagado: false,
   items: [],
+};
+
+const mapOrderTypeToCategory = (
+  tipo: OrderType
+): 'restaurant' | 'minibar' | 'other' => {
+  if (tipo === 'restaurante' || tipo === 'cafeteria') return 'restaurant';
+  if (tipo === 'bar' || tipo === 'room-service') return 'minibar';
+  return 'other';
 };
 
 const OrdersConsumption: React.FC = () => {
   const { user } = useAuth();
   const hotelId = user?.hotel;
   const { toast } = useToast();
-  const { orders, loading, addOrder, updateOrder, deleteOrder } = useOrders(hotelId);
+  const { orders, loading, addOrder, updateOrder, deleteOrder, generateOrderNumber } = useOrders(hotelId);
   const { menuItems } = useMenuItems(hotelId);
+  const { reservations } = useReservations(hotelId);
+  // hook con reservationId opcional - lo usamos solo para crear consumos puntuales
+  const { addConsumption, deleteConsumption } = useConsumptions(undefined as any);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
@@ -85,11 +120,19 @@ const OrdersConsumption: React.FC = () => {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [selectedMenuId, setSelectedMenuId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
 
   const activeMenuItems = useMemo(
     () => menuItems.filter((m) => m.activo !== false),
     [menuItems]
   );
+
+  // Solo huéspedes con reserva activa (confirmada o pendiente)
+  const availableGuests = useMemo(() => {
+    return reservations
+      .filter((r) => r.status === 'confirmada' || r.status === 'pendiente')
+      .sort((a, b) => a.guestName.localeCompare(b.guestName));
+  }, [reservations]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -140,12 +183,30 @@ const OrdersConsumption: React.FC = () => {
       tipo: order.tipo,
       ubicacion: order.ubicacion,
       cliente: order.cliente,
+      reservationId: order.reservationId || '',
       mesero: order.mesero,
       observaciones: order.observaciones || '',
       estado: order.estado,
+      pagado: order.pagado || false,
       items: order.items.map((i) => ({ ...i })),
     });
     setIsDialogOpen(true);
+  };
+
+  const handleSelectGuest = (reservationId: string) => {
+    const guest = availableGuests.find((g) => g.id === reservationId);
+    if (!guest) return;
+    setForm((prev) => ({
+      ...prev,
+      reservationId: guest.id,
+      cliente: guest.guestName,
+      // Si es room-service y aún no hay ubicación, prellenar con la habitación
+      ubicacion:
+        prev.tipo === 'room-service' && !prev.ubicacion
+          ? `Habitación ${guest.roomNumber}`
+          : prev.ubicacion,
+    }));
+    setClientPopoverOpen(false);
   };
 
   const handleAddItem = () => {
@@ -196,15 +257,50 @@ const OrdersConsumption: React.FC = () => {
     }));
   };
 
+  // Crea registro de consumo asociado a la reserva (para checkout)
+  const createConsumptionForOrder = async (
+    order: Pick<Order, 'reservationId' | 'numeroOrden' | 'tipo' | 'items' | 'total' | 'hotelId'>
+  ) => {
+    if (!order.reservationId) return undefined;
+    try {
+      const description = `${order.numeroOrden} - ${order.items
+        .map((i) => `${i.cantidad}x ${i.nombre}`)
+        .join(', ')}`;
+      const id = await addConsumption({
+        reservationId: order.reservationId,
+        hotelId: order.hotelId,
+        service: `F&B ${order.tipo}`,
+        description,
+        quantity: 1,
+        unitPrice: order.total,
+        total: order.total,
+        date: new Date(),
+        category: mapOrderTypeToCategory(order.tipo),
+      });
+      return id;
+    } catch (err) {
+      console.error('Error creando consumo asociado:', err);
+      return undefined;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!hotelId) {
       toast({ title: 'Error', description: 'No hay hotel asignado', variant: 'destructive' });
       return;
     }
-    if (!form.cliente.trim() || !form.mesero.trim() || !form.ubicacion.trim()) {
+    if (!form.cliente.trim() || !form.reservationId) {
+      toast({
+        title: 'Cliente requerido',
+        description: 'Selecciona un huésped con reserva activa',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!form.mesero.trim() || !form.ubicacion.trim()) {
       toast({
         title: 'Campos requeridos',
-        description: 'Completa cliente, mesero y mesa/habitación',
+        description: 'Completa mesero y mesa/habitación',
         variant: 'destructive',
       });
       return;
@@ -220,13 +316,17 @@ const OrdersConsumption: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const payload = {
+      const numeroOrden = editingOrder?.numeroOrden || generateOrderNumber();
+      const basePayload = {
+        numeroOrden,
         tipo: form.tipo,
         ubicacion: form.ubicacion.trim(),
         cliente: form.cliente.trim(),
+        reservationId: form.reservationId,
         mesero: form.mesero.trim(),
         observaciones: form.observaciones.trim(),
         estado: form.estado,
+        pagado: form.pagado,
         items: form.items,
         subtotal: totals.subtotal,
         total: totals.total,
@@ -234,11 +334,37 @@ const OrdersConsumption: React.FC = () => {
       };
 
       if (editingOrder) {
-        await updateOrder(editingOrder.id, payload);
+        // Sincronizar consumo según estado de pago
+        let consumptionId = editingOrder.consumptionId;
+        // Si estaba sin pagar y ahora está pagado -> eliminar consumo asociado
+        if (form.pagado && consumptionId) {
+          await deleteConsumption(consumptionId).catch(() => {});
+          consumptionId = undefined;
+        }
+        // Si no está pagado y no tiene consumo y no fue cancelado -> crear consumo
+        if (!form.pagado && !consumptionId && form.estado !== 'cancelado') {
+          consumptionId = await createConsumptionForOrder(basePayload);
+        }
+        // Si fue cancelado y existe consumo -> eliminar
+        if (form.estado === 'cancelado' && consumptionId) {
+          await deleteConsumption(consumptionId).catch(() => {});
+          consumptionId = undefined;
+        }
+        await updateOrder(editingOrder.id, { ...basePayload, consumptionId });
         toast({ title: 'Orden actualizada', description: 'Los cambios se guardaron' });
       } else {
-        await addOrder(payload);
-        toast({ title: 'Orden creada', description: 'La orden se registró correctamente' });
+        // Crear consumo si no está pagado y no fue cancelado al crearse
+        let consumptionId: string | undefined;
+        if (!form.pagado && form.estado !== 'cancelado') {
+          consumptionId = await createConsumptionForOrder(basePayload);
+        }
+        await addOrder({ ...basePayload, consumptionId });
+        toast({
+          title: 'Orden creada',
+          description: form.pagado
+            ? 'Orden registrada como pagada en sitio'
+            : 'Cargo agregado a la cuenta del huésped',
+        });
       }
       setIsDialogOpen(false);
       resetForm();
@@ -255,8 +381,44 @@ const OrdersConsumption: React.FC = () => {
 
   const handleStatusChange = async (order: Order, estado: OrderStatus) => {
     try {
-      await updateOrder(order.id, { estado });
+      // Si se cancela, eliminar consumo asociado
+      let consumptionId = order.consumptionId;
+      if (estado === 'cancelado' && consumptionId) {
+        await deleteConsumption(consumptionId).catch(() => {});
+        consumptionId = undefined;
+      }
+      await updateOrder(order.id, { estado, consumptionId });
       toast({ title: 'Estado actualizado', description: `Orden ${order.numeroOrden}: ${estado}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleTogglePaid = async (order: Order) => {
+    try {
+      const nuevoPagado = !order.pagado;
+      let consumptionId = order.consumptionId;
+
+      if (nuevoPagado) {
+        // Marcar como pagado -> retirar de la cuenta del huésped
+        if (consumptionId) {
+          await deleteConsumption(consumptionId).catch(() => {});
+          consumptionId = undefined;
+        }
+      } else {
+        // Quitar pagado -> volver a cargar a la cuenta del huésped
+        if (!consumptionId && order.reservationId && order.estado !== 'cancelado') {
+          consumptionId = await createConsumptionForOrder(order);
+        }
+      }
+
+      await updateOrder(order.id, { pagado: nuevoPagado, consumptionId });
+      toast({
+        title: nuevoPagado ? 'Marcada como pagada' : 'Marcada como pendiente de pago',
+        description: nuevoPagado
+          ? 'El pedido fue retirado de la cuenta del huésped'
+          : 'El pedido se agregó a la cuenta del huésped',
+      });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
@@ -265,6 +427,10 @@ const OrdersConsumption: React.FC = () => {
   const handleDelete = async () => {
     if (!deletingOrder) return;
     try {
+      // Eliminar consumo asociado si existe
+      if (deletingOrder.consumptionId) {
+        await deleteConsumption(deletingOrder.consumptionId).catch(() => {});
+      }
       await deleteOrder(deletingOrder.id);
       toast({ title: 'Orden eliminada', description: deletingOrder.numeroOrden });
       setDeletingOrder(null);
@@ -328,6 +494,8 @@ const OrdersConsumption: React.FC = () => {
 
   const formatTime = (date: Date) =>
     date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+  const selectedGuest = availableGuests.find((g) => g.id === form.reservationId);
 
   return (
     <motion.div
@@ -402,6 +570,16 @@ const OrdersConsumption: React.FC = () => {
                           {getStatusIcon(order.estado)}
                           <span className="ml-1 capitalize">{order.estado}</span>
                         </Badge>
+                        {order.pagado ? (
+                          <Badge className="bg-emerald-600 text-white">
+                            <DollarSign className="h-3 w-3 mr-0.5" />
+                            Pagada
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-amber-500 text-amber-600">
+                            A cuenta
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {getTypeIcon(order.tipo)}
@@ -471,11 +649,11 @@ const OrdersConsumption: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
                     {order.estado === 'pendiente' && (
                       <Button
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 min-w-[120px]"
                         onClick={() => handleStatusChange(order, 'preparando')}
                       >
                         Iniciar Preparación
@@ -485,7 +663,7 @@ const OrdersConsumption: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1"
+                        className="flex-1 min-w-[120px]"
                         onClick={() => handleStatusChange(order, 'listo')}
                       >
                         Marcar Listo
@@ -494,10 +672,21 @@ const OrdersConsumption: React.FC = () => {
                     {order.estado === 'listo' && (
                       <Button
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 min-w-[120px]"
                         onClick={() => handleStatusChange(order, 'entregado')}
                       >
                         Entregar
+                      </Button>
+                    )}
+                    {order.estado !== 'cancelado' && (
+                      <Button
+                        size="sm"
+                        variant={order.pagado ? 'outline' : 'secondary'}
+                        className="flex-1 min-w-[120px]"
+                        onClick={() => handleTogglePaid(order)}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        {order.pagado ? 'Marcar No Pagada' : 'Marcar Pagada'}
                       </Button>
                     )}
                     {(order.estado === 'pendiente' || order.estado === 'preparando') && (
@@ -587,13 +776,58 @@ const OrdersConsumption: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="cliente">Cliente *</Label>
-                <Input
-                  id="cliente"
-                  placeholder="Nombre del cliente"
-                  value={form.cliente}
-                  onChange={(e) => setForm({ ...form, cliente: e.target.value })}
-                />
+                <Label>Cliente (Huésped) *</Label>
+                <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedGuest
+                        ? `${selectedGuest.guestName} — Hab. ${selectedGuest.roomNumber}`
+                        : 'Selecciona un huésped...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar huésped..." />
+                      <CommandList>
+                        <CommandEmpty>
+                          {availableGuests.length === 0
+                            ? 'No hay reservas activas en este hotel'
+                            : 'Sin coincidencias'}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {availableGuests.map((guest) => (
+                            <CommandItem
+                              key={guest.id}
+                              value={`${guest.guestName} ${guest.roomNumber} ${guest.reservationNumber}`}
+                              onSelect={() => handleSelectGuest(guest.id)}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  form.reservationId === guest.id ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{guest.guestName}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Hab. {guest.roomNumber} · {guest.reservationNumber}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Solo se muestran huéspedes con reserva activa
+                </p>
               </div>
 
               <div>
@@ -650,6 +884,25 @@ const OrdersConsumption: React.FC = () => {
                   onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
                   rows={3}
                 />
+              </div>
+
+              <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                <Checkbox
+                  id="pagado"
+                  checked={form.pagado}
+                  onCheckedChange={(v) => setForm({ ...form, pagado: !!v })}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="pagado" className="cursor-pointer font-medium">
+                    Pagado en sitio
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Si está marcado, el pedido NO se cargará a la cuenta del huésped al hacer
+                    check-out. Si no se marca, se sumará automáticamente como consumo en la
+                    facturación final.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -768,6 +1021,11 @@ const OrdersConsumption: React.FC = () => {
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminará la orden{' '}
               <strong>{deletingOrder?.numeroOrden}</strong> permanentemente.
+              {deletingOrder?.consumptionId && (
+                <span className="block mt-2 text-amber-600">
+                  También se retirará el cargo asociado de la cuenta del huésped.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
