@@ -15,11 +15,50 @@ Muchos hoteles, especialmente pequeños y medianos, todavía gestionan sus opera
 ---
 
 ## Tecnologías utilizadas
-- **Frontend:** React 18, TypeScript, Vite, React Router, Tailwind CSS, shadcn/ui (Radix UI), Framer Motion, Lucide Icons.
-- **Estado y datos:** TanStack Query, Context API, React Hook Form, Zod.
-- **Backend (BaaS):** Firebase Authentication, Cloud Firestore (NoSQL en tiempo real).
-- **Reportes:** jsPDF, jspdf-autotable, xlsx (exportación a PDF y Excel).
-- **Otros:** date-fns, Recharts (gráficos), Sonner (notificaciones).
+
+### Frontend
+- **React 18** + **TypeScript 5** — Librería UI con tipado estático.
+- **Vite 5** — Build tool y dev server ultrarrápido.
+- **React Router DOM 6** — Enrutamiento SPA.
+- **Tailwind CSS 3** — Estilos utility-first con tokens semánticos.
+- **shadcn/ui** (Radix UI) — Componentes accesibles.
+- **Framer Motion** — Animaciones fluidas.
+- **Lucide React** — Iconografía SVG.
+
+### Estado, datos y formularios
+- **TanStack Query 5** — Cache y sincronización de datos.
+- **Context API** — Estado global (autenticación).
+- **React Hook Form 7** — Manejo de formularios.
+- **Zod 3** — Validación de esquemas tipados.
+
+### Backend (BaaS — Serverless)
+- **Firebase Authentication** — Gestión de usuarios y sesiones.
+- **Cloud Firestore** — Base de datos NoSQL en tiempo real (WebSockets).
+- **Firebase SDK v10+** — Cliente JavaScript oficial.
+
+### Reportes y exportación
+- **jsPDF** + **jspdf-autotable** — Generación de PDFs con tablas.
+- **xlsx (SheetJS)** — Exportación a Excel.
+- **Recharts** — Gráficos y dashboards interactivos.
+
+### Utilidades
+- **date-fns 3** — Manipulación de fechas.
+- **Sonner** — Notificaciones toast.
+- **clsx** + **tailwind-merge** — Composición de clases CSS.
+
+### Seguridad
+- **Firebase Authentication** — Autenticación gestionada con estándares de la industria; las contraseñas se almacenan con **hash bcrypt** del lado de Firebase (nunca en texto plano).
+- **JSON Web Tokens (JWT)** — Tokens de sesión firmados, con **refresh token** automático manejado por el SDK.
+- **HTTPS / TLS 1.2+** — Toda la comunicación entre el cliente y Firebase viaja cifrada.
+- **IndexedDB segura** — Almacenamiento de tokens en el navegador gestionado por el SDK de Firebase (no en `localStorage` plano).
+- **Reglas de seguridad de Firestore** — Control de acceso a nivel de base de datos por usuario autenticado y rol.
+- **Control de acceso basado en roles (RBAC)** — Tres roles (Administrador, Gerente, Colaborador) con módulos habilitados según plan y licencia.
+- **Reautenticación obligatoria** — Para operaciones sensibles como el cambio de contraseña (Firebase `reauthenticateWithCredential`).
+- **Bloqueo de cuentas** — Los colaboradores marcados como “inactivos” no pueden iniciar sesión.
+- **Validación con Zod** — Validación estricta de entradas en formularios para prevenir datos malformados.
+- **Protección XSS nativa** — React escapa automáticamente el contenido renderizado.
+- **Restricción de API Key** — La clave pública de Firebase se restringe por dominio en Google Cloud Console.
+- **Aislamiento multi-tenant** — Cada empresa/hotel solo accede a sus propios datos mediante filtros por `hotelId` y reglas de Firestore.
 
 ---
 
