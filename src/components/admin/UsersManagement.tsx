@@ -341,7 +341,7 @@ const UsersManagement: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <Shield className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm">
-                            Último acceso: {user.lastLogin || 'Nunca'}
+                            Último acceso: {user.lastLogin ? new Date(user.lastLogin?.seconds ? user.lastLogin.seconds * 1000 : user.lastLogin).toLocaleString('es-CO') : 'Nunca'}
                           </span>
                         </div>
                       </div>
