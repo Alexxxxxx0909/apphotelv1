@@ -48,7 +48,7 @@ const RegisterReservation: React.FC = () => {
   const { roomTypes, loading: loadingTypes } = useRoomTypes(hotelId);
   const { rooms, loading: loadingRooms } = useRooms(hotelId);
   const { plans, loading: loadingPlans } = useMealPlans(hotelId);
-  const { addReservation } = useReservations(hotelId);
+  const { addReservation, reservations } = useReservations(hotelId);
   const { calculatePrice } = usePricingRules(hotelId);
 
   const [reservationData, setReservationData] = useState<ReservationData>({
@@ -173,6 +173,26 @@ const RegisterReservation: React.FC = () => {
       return;
     }
 
+    // Validar conflicto de fechas para la misma habitación
+    const newCheckIn = startOfDay(reservationData.checkIn!);
+    const newCheckOut = startOfDay(reservationData.checkOut!);
+    const conflict = reservations.find(r => {
+      if (r.roomId !== reservationData.roomId) return false;
+      if (r.status === 'cancelada') return false;
+      const existingIn = startOfDay(r.checkIn);
+      const existingOut = startOfDay(r.checkOut);
+      // Solapamiento: nuevo_in < existente_out && nuevo_out > existente_in
+      return newCheckIn < existingOut && newCheckOut > existingIn;
+    });
+
+    if (conflict) {
+      toast({
+        title: "Habitación no disponible",
+        description: `La habitación ${conflict.roomNumber} ya tiene una reserva (${conflict.reservationNumber}) del ${format(conflict.checkIn, 'dd/MM/yyyy')} al ${format(conflict.checkOut, 'dd/MM/yyyy')}. Seleccione otras fechas u otra habitación.`,
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       const selectedType = roomTypes.find(t => t.id === reservationData.roomTypeId);
